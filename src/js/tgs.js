@@ -1992,8 +1992,40 @@ export const tgs = (function() {
     }
   }
 
+  // The 'tab' context type is only understood by Chromium 150+ (see PSA:
+  // https://groups.google.com/a/chromium.org/g/chromium-extensions/c/RReE8dtY4Ok/m/hOQaYDNYAwAJ).
+  // Registers a throwaway probe item to detect support, so older builds
+  // (e.g. Brave on Chromium 142) can skip the tab strip section instead of
+  // rejecting every single item and aborting the whole menu build.
+  function isTabStripContextSupported() {
+    return new Promise((resolve) => {
+      try {
+        chrome.contextMenus.create(
+          {
+            id: 'tab_context_support_probe',
+            title: ' ',
+            visible: false,
+            contexts: ['tab'],
+          },
+          () => {
+            const lastError = chrome.runtime.lastError;
+            chrome.contextMenus.remove('tab_context_support_probe', () => void chrome.runtime.lastError);
+            if (lastError) {
+              gsUtils.log('tgs', 'isTabStripContextSupported', lastError.message);
+            }
+            resolve(!lastError);
+          }
+        );
+      }
+      catch (e) {
+        gsUtils.warning('tgs', 'isTabStripContextSupported', e);
+        resolve(false);
+      }
+    });
+  }
+
   //HANDLERS FOR RIGHT-CLICK CONTEXT MENU
-  function buildContextMenu(showContextMenu) {
+  async function buildContextMenu(showContextMenu) {
     /** @type { chrome.contextMenus.CreateProperties['contexts'] } */
     const allContexts = ['page', 'frame', 'editable', 'image', 'video', 'audio']; //'selection',
 
@@ -2146,88 +2178,34 @@ export const tgs = (function() {
       });
 
       // Tab strip context menu items (right-click on tab in tab bar)
-      chrome.contextMenus.create({
-        id: 'tab_toggle_suspend',
-        title: gsUtils.getMessage('js_context_toggle_suspend_state'),
-        contexts: ['tab'],
-      });
-      chrome.contextMenus.create({
-        id: 'tab_toggle_pause',
-        title: gsUtils.getMessage('js_context_toggle_pause_suspension'),
-        contexts: ['tab'],
-      });
-      chrome.contextMenus.create({
-        id: 'tab_never_suspend_domain',
-        title: gsUtils.getMessage('js_context_never_suspend_domain'),
-        contexts: ['tab'],
-      });
-      chrome.contextMenus.create({
-        id: 'tab_never_suspend_page',
-        title: gsUtils.getMessage('js_context_never_suspend_page'),
-        contexts: ['tab'],
-      });
-      chrome.contextMenus.create({
-        id: 'tab_suspend_group',
-        title: gsUtils.getMessage('js_context_suspend_tab_group'),
-        contexts: ['tab'],
-      });
-      chrome.contextMenus.create({
-        id: 'tab_unsuspend_group',
-        title: gsUtils.getMessage('js_context_unsuspend_tab_group'),
-        contexts: ['tab'],
-      });
-      // enabled always: they act on the right-clicked tab, so gating on the active one would
-      // grey them out on valid targets. See refreshNeverSuspendGroupMenuItems().
-      chrome.contextMenus.create({
-        id: 'tab_never_suspend_group',
-        title: gsUtils.getMessage('js_context_never_suspend_group'),
-        contexts: ['tab'],
-      });
-      chrome.contextMenus.create({
-        id: 'tab_allow_suspending_group',
-        title: gsUtils.getMessage('js_context_allow_suspending_group'),
-        contexts: ['tab'],
-      });
-      chrome.contextMenus.create({
-        id: 'tab_suspend_ungrouped',
-        title: gsUtils.getMessage('js_context_suspend_ungrouped_tabs'),
-        contexts: ['tab'],
-      });
-      chrome.contextMenus.create({
-        id: 'tab_unsuspend_ungrouped',
-        title: gsUtils.getMessage('js_context_unsuspend_ungrouped_tabs'),
-        contexts: ['tab'],
-      });
-      chrome.contextMenus.create({
-        id: 'tab_separator1',
-        type: 'separator',
-        contexts: ['tab'],
-      });
-      chrome.contextMenus.create({
-        id: 'tab_soft_suspend_other_tabs',
-        title: gsUtils.getMessage('js_context_soft_suspend_other_tabs_in_window'),
-        contexts: ['tab'],
-      });
-      chrome.contextMenus.create({
-        id: 'tab_unsuspend_all_in_window',
-        title: gsUtils.getMessage('js_context_unsuspend_all_tabs_in_window'),
-        contexts: ['tab'],
-      });
-      chrome.contextMenus.create({
-        id: 'tab_separator2',
-        type: 'separator',
-        contexts: ['tab'],
-      });
-      chrome.contextMenus.create({
-        id: 'tab_soft_suspend_all',
-        title: gsUtils.getMessage('js_context_soft_suspend_all_tabs'),
-        contexts: ['tab'],
-      });
-      chrome.contextMenus.create({
-        id: 'tab_unsuspend_all',
-        title: gsUtils.getMessage('js_context_unsuspend_all_tabs'),
-        contexts: ['tab'],
-      });
+      if (await isTabStripContextSupported()) {
+        const tabContextMenus = [
+          { id: 'tab_toggle_suspend', title: gsUtils.getMessage('js_context_toggle_suspend_state') },
+          { id: 'tab_toggle_pause', title: gsUtils.getMessage('js_context_toggle_pause_suspension') },
+          { id: 'tab_never_suspend_domain', title: gsUtils.getMessage('js_context_never_suspend_domain') },
+          { id: 'tab_never_suspend_page', title: gsUtils.getMessage('js_context_never_suspend_page') },
+          { id: 'tab_suspend_group', title: gsUtils.getMessage('js_context_suspend_tab_group') },
+          { id: 'tab_unsuspend_group', title: gsUtils.getMessage('js_context_unsuspend_tab_group') },
+          // enabled always: they act on the right-clicked tab, so gating on the active one would
+          // grey them out on valid targets. See refreshNeverSuspendGroupMenuItems().
+          { id: 'tab_never_suspend_group', title: gsUtils.getMessage('js_context_never_suspend_group') },
+          { id: 'tab_allow_suspending_group', title: gsUtils.getMessage('js_context_allow_suspending_group') },
+          { id: 'tab_suspend_ungrouped', title: gsUtils.getMessage('js_context_suspend_ungrouped_tabs') },
+          { id: 'tab_unsuspend_ungrouped', title: gsUtils.getMessage('js_context_unsuspend_ungrouped_tabs') },
+          { id: 'tab_separator1', type: 'separator' },
+          { id: 'tab_soft_suspend_other_tabs', title: gsUtils.getMessage('js_context_soft_suspend_other_tabs_in_window') },
+          { id: 'tab_unsuspend_all_in_window', title: gsUtils.getMessage('js_context_unsuspend_all_tabs_in_window') },
+          { id: 'tab_separator2', type: 'separator' },
+          { id: 'tab_soft_suspend_all', title: gsUtils.getMessage('js_context_soft_suspend_all_tabs') },
+          { id: 'tab_unsuspend_all', title: gsUtils.getMessage('js_context_unsuspend_all_tabs') },
+        ];
+        for (const tabContextMenu of tabContextMenus) {
+          chrome.contextMenus.create({
+            ...tabContextMenu,
+            contexts: ['tab'],
+          });
+        }
+      }
 
       // enable the page item above if the tab in front of the user is in a named group (#133)
       refreshNeverSuspendGroupMenuItems();
