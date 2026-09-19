@@ -885,11 +885,9 @@ export const gsSession = (function() {
    * @returns { Promise<{ sessionTab: chrome.tabs.Tab, newTab: chrome.tabs.Tab | null }> }
    */
   async function createNewTabAsPromised({ delay, windowId, index, sessionTab, suspendMode }) {
-    return new Promise(async (resolve) => {
-      await gsUtils.setTimeout(delay);
-      const newTab = await createNewTabFromSessionTab( sessionTab, windowId, index, suspendMode );
-      resolve({sessionTab, newTab});
-    });
+    await gsUtils.setTimeout(delay);
+    const newTab = await createNewTabFromSessionTab( sessionTab, windowId, index, suspendMode );
+    return {sessionTab, newTab};
   }
 
   /**

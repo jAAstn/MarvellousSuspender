@@ -371,6 +371,9 @@ import  { tgs }                   from './tgs.js';
     return true;
   }
 
+  // [FORK] Rewritten from an async listener (whose returned promise Chrome ignores, closing the
+  // message channel before any post-await sendResponse could fire) to the same sync-listener +
+  // detached-IIFE pattern the internal messageRequestListener above uses.
   function externalMessageRequestListener(request, sender, sendResponse) {
     gsUtils.log('background', 'externalMessageRequestListener', request, sender);
 
@@ -821,45 +824,42 @@ import  { tgs }                   from './tgs.js';
   }
 
   /** @returns { Promise<void> } */
-  function initAsPromised() {
-    return new Promise(async (resolve) => {
-      gsUtils.log('background', 'PERFORMING BACKGROUND INIT...');
+  async function initAsPromised() {
+    gsUtils.log('background', 'PERFORMING BACKGROUND INIT...');
 
-      // Deliberately NOT cleaning up the old chrome.storage.local-backed log buffer's keys
-      // (gsLogBuffer, gsLogBufferFull, gsLogBufferVersion, gsLogBufferClearedAt) here or
-      // anywhere else. An earlier version of this code did exactly that from this same
-      // service-worker init, on the theory that bounding *who* calls remove() (at most the
-      // two service worker instances "incognito": "split" creates, rather than every open
-      // context) was enough to avoid the broadcast-fanout problem this whole migration
-      // exists to eliminate. It wasn't: chrome.storage.local.remove() broadcasts the
-      // removed key's full oldValue to *every* context with an onChanged listener
-      // regardless of which context called remove() — a profile that had already
-      // accumulated a multi-MB gsLogBufferFull under the old design would still deliver
-      // that same multi-MB payload to every suspended tab on the one call that actually
-      // succeeds, no matter how few contexts attempt it. These keys are genuinely orphaned
-      // (nothing reads them any more) and harmless left in place — a few MB of dead data
-      // sitting in chrome.storage.local forever is a far better trade than risking that
-      // broadcast during exactly the many-suspended-tabs scenario that caused the original
-      // crash.
+    // Deliberately NOT cleaning up the old chrome.storage.local-backed log buffer's keys
+    // (gsLogBuffer, gsLogBufferFull, gsLogBufferVersion, gsLogBufferClearedAt) here or
+    // anywhere else. An earlier version of this code did exactly that from this same
+    // service-worker init, on the theory that bounding *who* calls remove() (at most the
+    // two service worker instances "incognito": "split" creates, rather than every open
+    // context) was enough to avoid the broadcast-fanout problem this whole migration
+    // exists to eliminate. It wasn't: chrome.storage.local.remove() broadcasts the
+    // removed key's full oldValue to *every* context with an onChanged listener
+    // regardless of which context called remove() — a profile that had already
+    // accumulated a multi-MB gsLogBufferFull under the old design would still deliver
+    // that same multi-MB payload to every suspended tab on the one call that actually
+    // succeeds, no matter how few contexts attempt it. These keys are genuinely orphaned
+    // (nothing reads them any more) and harmless left in place — a few MB of dead data
+    // sitting in chrome.storage.local forever is a far better trade than risking that
+    // broadcast during exactly the many-suspended-tabs scenario that caused the original
+    // crash.
 
-      //initialise currentStationary and currentFocused vars
-      const activeTabs = await gsChrome.tabsQuery({ active: true });
-      const currentWindow = await gsChrome.windowsGetLastFocused();
-      for (const activeTab of activeTabs) {
-        (await tgs.getCurrentStationaryTabIdByWindowId())[activeTab.windowId] = activeTab.id;
-        (await tgs.getCurrentFocusedTabIdByWindowId())[activeTab.windowId] = activeTab.id;
-        if (currentWindow && currentWindow.id === activeTab.windowId) {
-          await tgs.setCurrentStationaryWindowId(activeTab.windowId);
-          await tgs.setCurrentFocusedWindowId(activeTab.windowId);
-        }
+    //initialise currentStationary and currentFocused vars
+    const activeTabs = await gsChrome.tabsQuery({ active: true });
+    const currentWindow = await gsChrome.windowsGetLastFocused();
+    for (const activeTab of activeTabs) {
+      (await tgs.getCurrentStationaryTabIdByWindowId())[activeTab.windowId] = activeTab.id;
+      (await tgs.getCurrentFocusedTabIdByWindowId())[activeTab.windowId] = activeTab.id;
+      if (currentWindow && currentWindow.id === activeTab.windowId) {
+        await tgs.setCurrentStationaryWindowId(activeTab.windowId);
+        await tgs.setCurrentFocusedWindowId(activeTab.windowId);
       }
-      await tgs.initTabGroupKeyCache();
-      // the menu outlives the worker but is built only on install, so re-derive it per start (#133)
-      tgs.refreshNeverSuspendGroupMenuItems();
+    }
+    await tgs.initTabGroupKeyCache();
+    // the menu outlives the worker but is built only on install, so re-derive it per start (#133)
+    tgs.refreshNeverSuspendGroupMenuItems();
 
-      gsUtils.log('background', 'init successful');
-      resolve();
-    });
+    gsUtils.log('background', 'init successful');
   }
 
 

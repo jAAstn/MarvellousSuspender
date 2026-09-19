@@ -85,19 +85,21 @@ import  { gsCustomSuspend }       from './gsCustomSuspend.js'; // [FORK]
   }
 
   function buildImagePreview(tab, previewUri) {
-    return new Promise(async (resolve) => {
-      const previewEl = document.createElement('div');
-      const bodyEl = document.getElementsByTagName('body')[0];
-      previewEl.setAttribute('id', 'gsPreviewContainer');
-      previewEl.classList.add('gsPreviewContainer');
-      previewEl.innerHTML = document.getElementById(
-        'previewTemplate',
-      ).innerHTML;
-      const unsuspendTabHandler = buildUnsuspendTabHandler(tab);
-      previewEl.onclick = unsuspendTabHandler;
-      gsUtils.localiseHtml(previewEl);
-      bodyEl.appendChild(previewEl);
+    const previewEl = document.createElement('div');
+    const bodyEl = document.getElementsByTagName('body')[0];
+    previewEl.setAttribute('id', 'gsPreviewContainer');
+    previewEl.classList.add('gsPreviewContainer');
+    previewEl.innerHTML = document.getElementById(
+      'previewTemplate',
+    ).innerHTML;
+    const unsuspendTabHandler = buildUnsuspendTabHandler(tab);
+    previewEl.onclick = unsuspendTabHandler;
+    gsUtils.localiseHtml(previewEl);
+    bodyEl.appendChild(previewEl);
 
+    // Settles when the preview image has loaded (or failed to): still event-driven,
+    // just without the promise-executor wrapper around it.
+    return new Promise((resolve) => {
       const previewImgEl = document.getElementById('gsPreviewImg');
       const onLoadedHandler = function() {
         previewImgEl.removeEventListener('load', onLoadedHandler);

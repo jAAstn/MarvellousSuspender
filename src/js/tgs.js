@@ -1148,9 +1148,9 @@ export const tgs = (function() {
     });
   }
 
-  function initialiseTabContentScript(tab, isTempWhitelist, scrollPos) {
-    return new Promise(async (resolve, reject) => {
-      const ignoreForms = await gsStorage.getOption(gsStorage.IGNORE_FORMS);
+  async function initialiseTabContentScript(tab, isTempWhitelist, scrollPos) {
+    const ignoreForms = await gsStorage.getOption(gsStorage.IGNORE_FORMS);
+    return new Promise((resolve, reject) => {
       gsMessages.sendInitTabToContentScript(tab.id, ignoreForms, isTempWhitelist, scrollPos, (error, response) => {
         if (error) {
           reject(error);
@@ -1583,8 +1583,8 @@ export const tgs = (function() {
     }
 
     //update icon
-    const status = await new Promise(async (resolve) => {
-      await calculateTabStatus(focusedTab, contentScriptStatus, resolve);
+    const status = await new Promise((resolve) => {
+      calculateTabStatus(focusedTab, contentScriptStatus, resolve);
     });
 
     //if this tab still has focus then update icon
@@ -1992,7 +1992,7 @@ export const tgs = (function() {
     }
   }
 
-  // The 'tab' context type is only understood by Chromium 150+ (see PSA:
+  // [FORK] The 'tab' context type is only understood by Chromium 150+ (see PSA:
   // https://groups.google.com/a/chromium.org/g/chromium-extensions/c/RReE8dtY4Ok/m/hOQaYDNYAwAJ).
   // Registers a throwaway probe item to detect support, so older builds
   // (e.g. Brave on Chromium 142) can skip the tab strip section instead of
@@ -2177,7 +2177,7 @@ export const tgs = (function() {
         contexts: allContexts,
       });
 
-      // Tab strip context menu items (right-click on tab in tab bar)
+      // [FORK] Tab strip context menu items (right-click on tab in tab bar)
       if (await isTabStripContextSupported()) {
         const tabContextMenus = [
           { id: 'tab_toggle_suspend', title: gsUtils.getMessage('js_context_toggle_suspend_state') },
