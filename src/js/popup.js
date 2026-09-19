@@ -3,6 +3,7 @@ import  { gsSession }             from './gsSession.js';
 import  { gsStorage }             from './gsStorage.js';
 import  { gsUtils }               from './gsUtils.js';
 import  { tgs }                   from './tgs.js';
+import  { gsCustomSuspend }       from './gsCustomSuspend.js'; // [FORK]
 
 (function() {
   'use strict';
@@ -109,6 +110,25 @@ import  { tgs }                   from './tgs.js';
     }
   }
 
+  // [FORK] second status line: "Will suspend after X min/h (custom)" for the active tab.
+  // Only shown while a timer can actually run (normal/active status); see gsCustomSuspend.js.
+  async function getSuspendTimeDetail(status) {
+    if (status !== gsUtils.STATUS_NORMAL && status !== gsUtils.STATUS_ACTIVE) {
+      return '';
+    }
+    const tab = await new Promise((resolve) => tgs.getCurrentlyActiveTab(resolve));
+    if (!tab || !tab.url) {
+      return '';
+    }
+    const globalTime = await gsCustomSuspend.getEffectiveGlobalSuspendTime(await tgs.isCharging());
+    const info       = await gsCustomSuspend.resolveSuspendTime(tab.url, globalTime);
+    const text       = gsCustomSuspend.formatSuspendTimeDetail(info);
+    if (!text) {
+      return '';
+    }
+    return '<br><span class="statusTimeDetail">' + gsUtils.htmlEncode(text) + '</span>';
+  }
+
   async function setStatus(status) {
     setSuspendCurrentVisibility(status);
 
@@ -198,6 +218,7 @@ import  { tgs }                   from './tgs.js';
     } else {
       gsUtils.warning('popup', 'Could not process tab status of: ' + status);
     }
+    statusDetail += await getSuspendTimeDetail(status); // [FORK]
     document.getElementById('statusDetail').innerHTML = statusDetail;
     //  document.getElementById('statusIcon').className = statusIconClass;
     // if (status === gsUtils.STATUS_UNKNOWN || status === gsUtils.STATUS_LOADING) {

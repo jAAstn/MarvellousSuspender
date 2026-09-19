@@ -949,6 +949,25 @@
   "js_popup_never": {
     "message": "Automatic tab suspension disabled."
   },
+  "js_popup_suspend_time_minutes": {
+    "message": "Will suspend after $mins$ min",
+    "placeholders": {
+      "mins": {
+        "content": "$1"
+      }
+    }
+  },
+  "js_popup_suspend_time_hours": {
+    "message": "Will suspend after $hours$ h",
+    "placeholders": {
+      "hours": {
+        "content": "$1"
+      }
+    }
+  },
+  "js_popup_suspend_time_custom": {
+    "message": " (custom)"
+  },
   "js_popup_no_connectivity": {
     "message": "No network connection"
   },

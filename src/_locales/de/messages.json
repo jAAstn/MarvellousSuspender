@@ -949,6 +949,25 @@
   "js_popup_never": {
     "message": "Automatisches Aussetzen ist deaktiviert."
   },
+  "js_popup_suspend_time_minutes": {
+    "message": "Wird nach $mins$ Min. ausgesetzt",
+    "placeholders": {
+      "mins": {
+        "content": "$1"
+      }
+    }
+  },
+  "js_popup_suspend_time_hours": {
+    "message": "Wird nach $hours$ Std. ausgesetzt",
+    "placeholders": {
+      "hours": {
+        "content": "$1"
+      }
+    }
+  },
+  "js_popup_suspend_time_custom": {
+    "message": " (eigene Regel)"
+  },
   "js_popup_no_connectivity": {
     "message": "Keine Netzwerkverbindung"
   },
