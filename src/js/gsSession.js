@@ -935,7 +935,7 @@ export const gsSession = (function() {
   async function createNewTabFromSessionTab( sessionTab, windowId, index, suspendMode ) {
     let url = sessionTab.url;
     if (suspendMode === 1 && gsUtils.isNormalTab(sessionTab)) {
-      url = gsUtils.generateSuspendedUrl(sessionTab.url, sessionTab.title);
+      url = gsUtils.generateSuspendedUrl(sessionTab.url, sessionTab.title, 0, sessionTab.favIconUrl /* [FORK] */);
     } else if (suspendMode === 2 && gsUtils.isSuspendedTab(sessionTab)) {
       url = gsUtils.getOriginalUrl(sessionTab.url);
     }

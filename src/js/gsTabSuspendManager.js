@@ -128,6 +128,7 @@ export const gsTabSuspendManager = (function() {
           tab.url,
           savedTabInfo.title,
           0,
+          tab.favIconUrl, // [FORK]
         );
         gsUtils.log(tab.id, QUEUE_ID, 'Interrupting tab loading to resuspend tab');
         const success = await executeTabSuspension(tab, suspendedUrl);
@@ -177,7 +178,7 @@ export const gsTabSuspendManager = (function() {
     tab.url = timestampedUrl;
     await saveSuspendData(tab);
 
-    const suspendedUrl = gsUtils.generateSuspendedUrl(tab.url, tab.title, tabInfo.scrollPos,);
+    const suspendedUrl = gsUtils.generateSuspendedUrl(tab.url, tab.title, tabInfo.scrollPos, tab.favIconUrl /* [FORK] */);
     executionProps.suspendedUrl = suspendedUrl;
 
     if (screenCaptureMode === '0') {
@@ -277,7 +278,7 @@ export const gsTabSuspendManager = (function() {
 
       if (!suspendedUrl) {
         gsUtils.log(tab.id, 'executionProps.suspendedUrl not set!');
-        suspendedUrl = gsUtils.generateSuspendedUrl(tab.url, tab.title, 0);
+        suspendedUrl = gsUtils.generateSuspendedUrl(tab.url, tab.title, 0, tab.favIconUrl /* [FORK] */);
       }
 
       gsUtils.log(tab.id, 'Suspending tab');

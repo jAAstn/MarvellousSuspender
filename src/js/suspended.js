@@ -5,6 +5,7 @@ import  { gsMascot }              from './gsMascot.js';
 import  { gsStorage }             from './gsStorage.js';
 import  { gsUtils }               from './gsUtils.js';
 import  { tgs }                   from './tgs.js';
+import  { gsCustomSuspend }       from './gsCustomSuspend.js'; // [FORK]
 
 (() => {
 
@@ -298,6 +299,21 @@ import  { tgs }                   from './tgs.js';
     document.getElementById('tmsUpdateAvailable').onclick = unsuspendTabHandler;
   }
 
+  // [FORK] see gsCustomSuspend.js (Favicon-Durchreichung)
+  async function getPassthroughFaviconMeta(suspendedUrl) {
+    const favicon = gsCustomSuspend.getFaviconFromSuspendedUrl(suspendedUrl);
+    if (!favicon) {
+      return null;
+    }
+    try {
+      return await gsFavicon.buildFaviconMeta(favicon);
+    }
+    catch (error) {
+      gsUtils.warning('suspended', 'getPassthroughFaviconMeta', error);
+      return null;
+    }
+  }
+
   async function initTab(tab, sessionId, quickInit) {
 
     const suspendedUrl = tab.url;
@@ -325,7 +341,11 @@ import  { tgs }                   from './tgs.js';
     setWatermark();
 
     // Set faviconMeta
-    const faviconMeta = await gsFavicon.getFaviconMeta(tab);
+    // [FORK] a data:-favicon carried in the suspended URL wins over the cache/Chrome lookup
+    let faviconMeta = await getPassthroughFaviconMeta(suspendedUrl);
+    if (!faviconMeta) {
+      faviconMeta = await gsFavicon.getFaviconMeta(tab);
+    }
     setFaviconMeta(faviconMeta);
 
     if (quickInit) {

@@ -9,6 +9,7 @@ import  { gsStorage }             from './gsStorage.js';
 import  { gsTabDiscardManager }   from './gsTabDiscardManager.js';
 import  { gsTabSuspendManager }   from './gsTabSuspendManager.js';
 import  { tgs }                   from './tgs.js';
+import  { gsCustomSuspend }       from './gsCustomSuspend.js'; // [FORK]
 
 'use strict';
 
@@ -941,9 +942,11 @@ export const gsUtils = {
     }
   },
 
-  generateSuspendedUrl: (url, title, scrollPos) => {
+  // [FORK] optional 4th arg favIconUrl: data:-favicons are carried in the hash (see gsCustomSuspend.js)
+  generateSuspendedUrl: (url, title, scrollPos, favIconUrl) => {
     const encodedTitle = gsUtils.encodeString(title);
-    const args = `#ttl=${encodedTitle}&pos=${scrollPos || '0'}&uri=${url}`;
+    const faviconArg = gsCustomSuspend.buildFaviconHashParam(favIconUrl); // [FORK] must precede uri=
+    const args = `#ttl=${encodedTitle}&pos=${scrollPos || '0'}${faviconArg}&uri=${url}`;
     return chrome.runtime.getURL(`suspended.html${  args}`);
   },
 
