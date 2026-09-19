@@ -430,3 +430,30 @@ Entries under "Unreleased" live on a feature branch until merged into `master`.
 - `README.md`: visual overhaul, centered header with `suspendy-guy-main.png` mascot, tagline, and four shields.io badges (license, Manifest v3, Chrome ≥ 110, Crowdin l10n); Marvellous Codeworks logo (`marvellous-codeworks-logo.png`) with brand attribution below the badges; `suspendy-guy-lotus.png` accent in the Shoutouts section; fixed broken markdown links (permissions bare URL, tab-recovery line break); removed BrowserStack shoutout (no longer a dependency); added Manifest V3 / Chrome 110 requirement callout to install-from-source; minor prose cleanup throughout.
 - Branch rebased onto `master` (2026-06-15) to incorporate bugfixes from v8.1.4 (#369 Chrome tab group bug, #370 favicon cache, #371 logs and linter, #372 manifest prep). No conflicts with the visual-redesign changes.
 - Branch rebased onto `master` (2026-06-24) to incorporate v8.1.5 (#374 Edge tab group bug fix, #376 tab recovery for non-suspended tabs). Our version stays at 8.2.0. Conflict on `manifest.json` (version) resolved keeping 8.2.0; `gsSession.js` and `background.js` absorbed master's Edge fix cleanly alongside our changes.
+---
+
+## Fork-Änderungen (jAAstn/MarvellousSuspender)
+
+> Dieser Abschnitt gehört **nicht** zum Upstream. Er steht bewusst am Dateiende, damit Upstream-Merges
+> (die immer oben in `[Unreleased]` schreiben) nicht konfligieren. Details zu jeder Änderung mit exakten
+> Code-Stellen: [`docs/PERSOENLICHE_AENDERUNGEN.md`](docs/PERSOENLICHE_AENDERUNGEN.md).
+> Merge-Anleitung: [`docs/UPSTREAM_UPDATE.md`](docs/UPSTREAM_UPDATE.md).
+
+### [Fork] 2026-09-19 — Basis: Upstream v9.0.3 (`25574c39`)
+
+#### Hinzugefügt
+- **Eigene Auto-Suspend-Zeiten pro URL** (`gsCustomSuspend.js` neu, Hooks in `gsStorage.js`, `tgs.js`, `gsTabSuspendManager.js`, `gsUtils.js`, `options.html`, `options.js`, `_locales/{en,de}`): neue Textliste in Optionen → Auto-Suspend, eine Regel pro Zeile `MUSTER : MINUTEN`. Muster als Substring, `*`-Wildcard oder `/regex/`; erste passende Zeile gewinnt; `0` = diesen Tab nie automatisch aussetzen; Komma als Dezimaltrenner; `#`-Kommentare. Eine Regel überschreibt das globale Timeout **inklusive** Battery-Timeout (#252) und greift auch, wenn global „Never“ eingestellt ist. Änderungen an der Liste setzen sofort die Timer aller offenen Tabs neu. Speicher-Key `gsCustomSuspendTimes`, wird per Settings-Sync übertragen.
+- **Popup zeigt „Wird nach X Min./Std. ausgesetzt“** (`popup.js`, `popup.css`): zweite, kleinere Statuszeile für den aktiven Tab, mit Suffix „(eigene Regel)“ wenn eine Custom-Regel greift. Nur bei Status normal/aktiv.
+- **Favicon-Durchreichung für `data:`-Favicons** (`gsUtils.generateSuspendedUrl()` 4. Parameter, Aufrufer in `gsTabSuspendManager.js`, `gsTabDiscardManager.js`, `gsSession.js`, Auswertung in `suspended.js`): per Script gesetzte Favicons gehen beim Suspend nicht mehr verloren; sie werden als `favicon=`-Hash-Parameter (< 16 KB, nur `data:`) mitgeführt. Verhalten übernommen von ZeroRAM Suspender.
+- **Verlaufs-Bereinigung für Platzhalter-Seiten** (`gsTabSuspendManager.js`, `tgs.js`): die `suspended.html`-URL wird direkt nach dem Suspend und erneut bei `status === 'complete'` aus `chrome.history` gelöscht, statt erst beim Unsuspend (Upstream-Verhalten bleibt zusätzlich bestehen).
+- **ZeroRAM-Migration** (`history.js`, `historyUtils.js`): Session-Manager → Migrate erkennt ZeroRAM Suspender (`pciejkjdekpfadcjaincgoamekjljcfc`) und konvertiert dessen Query-String-Format (`?uri=&ttl=&favicon=`) korrekt in TMS-Suspended-URLs.
+- **Eigene Action-Icons**: `img/ic_suspendy_16x16.png`, `ic_suspendy_16x16_grey.png`, `ic_suspendy_32x32_grey.png` ersetzt (Commit `ffa69791`).
+- **Fork-Dokumentation** unter `docs/` (Architektur, Kontext, Katalog, Merge-Anleitung, Tests, Entscheidungen, Performance-Audit, Roadmap).
+
+#### Geändert
+- Alle Fork-Zeilen in Upstream-Dateien sind mit `[FORK]` markiert (19 Stellen außerhalb des Moduls). Fork-Imports stehen jeweils am Ende des Import-Blocks.
+- `calculateTabStatus()` / `checkTabEligibilityForSuspension()`: der Never-Check `=== '0'` ist durch `gsCustomSuspend.resolveSuspendTime(...).minutes === 0` ersetzt – nicht-numerische globale Werte gelten damit ebenfalls als „Never“ (praktisch ohne Auswirkung, Default `'60'` aus `<select>`).
+
+#### Bekannt / akzeptiert
+- `npm run check-locales` meldet die 8 neuen i18n-Keys in 16 Locales als fehlend (nur `en` + `de` gepflegt).
+- Custom-Regel `0` erzeugt Status `never` → Popup zeigt den Upstream-Text ohne „(eigene Regel)“.

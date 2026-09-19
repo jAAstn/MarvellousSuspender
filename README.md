@@ -93,3 +93,31 @@ This work is licensed under a [GNU General Public License v2](LICENSE).
   <img src="src/img/suspendy-guy-lotus.webp" alt="" width="48" align="right" />
   <img src="src/img/marvellous-codeworks-logo.webp" alt="Marvellous Codeworks" height="26" align="left" /> <i>A Marvellous Codeworks project</i>
 </div>
+---
+
+## Fork-Hinweis (jAAstn/MarvellousSuspender)
+
+> Dieser Abschnitt gehört **nicht** zum Upstream [gioxx/MarvellousSuspender](https://github.com/gioxx/MarvellousSuspender)
+> und steht bewusst am Dateiende, damit Upstream-Updates ohne Konflikte gemergt werden können.
+
+Dies ist ein persönlicher Fork, der dem Upstream täglich folgt und wenige, klar isolierte Erweiterungen mitbringt:
+
+| Feature | Kurz |
+|---|---|
+| **Eigene Auto-Suspend-Zeiten pro URL** | Optionen → Auto-Suspend: `MUSTER : MINUTEN` pro Zeile (Substring, `*`-Wildcard, `/regex/`), erste Zeile gewinnt, `0` = nie. Greift auch bei globalem „Never“. |
+| **Popup-Anzeige** | „Wird nach X Min./Std. ausgesetzt (eigene Regel)“ unter dem Tab-Status. |
+| **Favicon-Durchreichung** | Per Script gesetzte `data:`-Favicons überleben den Suspend. |
+| **Verlaufs-Bereinigung** | `suspended.html`-Platzhalter landen nicht mehr im Chrome-Verlauf. |
+| **ZeroRAM-Migration** | Session-Manager → Migrate übernimmt Tabs von ZeroRAM Suspender. |
+| **Eigene Icons** | Angepasste Toolbar-Icons (16 px, 16/32 px grau). |
+
+**Technik:** Die gesamte Fork-Logik liegt in `src/js/gsCustomSuspend.js`; Upstream-Dateien enthalten nur
+Ein-Zeilen-Hooks mit `[FORK]`-Marker (`grep -rn "\[FORK\]" src`). i18n nur `en` + `de`.
+
+**Dokumentation:** [`docs/README.md`](docs/README.md) – insbesondere
+[`PERSOENLICHE_AENDERUNGEN.md`](docs/PERSOENLICHE_AENDERUNGEN.md) (Katalog),
+[`UPSTREAM_UPDATE.md`](docs/UPSTREAM_UPDATE.md) (Merge-Anleitung) und
+[`TESTING.md`](docs/TESTING.md) (Checkliste).
+
+**Installation:** wie oben („Install as an extension from source“) – `src/` per „Load unpacked“ laden.
+Nicht im Chrome Web Store.
