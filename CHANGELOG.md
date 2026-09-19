@@ -15,6 +15,10 @@ Entries under "Unreleased" live on a feature branch until merged into `master`.
 - **"Never suspend tabs in a tab group"** (`gsStorage.js`, `gsUtils.js`, `gsTabSuspendManager.js`, `tgs.js`, `background.js`, `popup.js`, `options.html`, `options.js`, all 18 `messages.json` locales, #133): new checkbox in Options → Auto-suspend (`gsDontSuspendGroupedTabs`), right after "never suspend tabs opened in app windows". Off by default, unlike its pinned/audio/app-window siblings, since suspending grouped tabs is what every install does today and turning this on for everyone would change behaviour nobody asked to change. `gsUtils.isProtectedGroupedTab()` follows the existing `isProtectedPinnedTab()` pattern and sits in `checkTabEligibilityForSuspension()`'s `forceLevel >= 2` block beside its siblings, so the automatic and bulk paths skip a grouped tab while an explicit per-tab suspend still works. "Suspend all tabs in this group" skips the group outright while the option is on, rather than suspending just the tab it was invoked on, matching how a whitelisted group already behaves. A tab leaving its group re-arms its auto-suspend timer, which also needed `'groupId'` adding to `background.js`'s `RELEVANT_TAB_UPDATE_KEYS`, since otherwise the event never reaches `handleUnsuspendedTabStateChanged()` and a tab dragged out of a group would never suspend again that session. New `gsUtils.STATUS_GROUPED_TAB` so the popup says why the tab is protected instead of showing nothing.
 - **Suspend/unsuspend all tabs not in a group** (`tgs.js`, `background.js`, `shortcuts.js`, `manifest.json`, all 18 `messages.json` locales, #133): the counterpart to the tab-group actions, for the loose tabs left outside every group. Items in both context menus plus two bindable shortcuts, scoped to the window they were triggered from. Same suspend queue and `forceLevel` as the group actions, so whitelist, pinned, audible, app-window and form-input protections still apply. Misfiled under `[9.0.3]` when first written (merged the day after that release was already tagged); moved here to `[Unreleased]` to match when it actually shipped.
 
+> Fork-spezifische Ergänzungen dieses Zyklus (Tab-Strip-Kontextmenü-Probe, externer Message-Listener,
+> Promise-Executor-Umbau, CI/Lint-Baseline) stehen bewusst **nicht** hier, sondern im Fork-Abschnitt am
+> Dateiende bzw. gebündelt in [`docs/changelog_eigen.md`](docs/changelog_eigen.md).
+
 ### Fixed
 - **A synced settings change could overwrite a newer local one** (`gsStorage.js`): the sync listener and `setOption()` each read, changed and wrote back the whole settings object with nothing serialising them, and the listener applied any incoming change, including the late echo of an earlier local write, so two quick changes to the same setting could end on the older value. Both now go through one write chain, as does the default-filling save in `getSettings()` (from a fresh read, and `getOption()` no longer saves on its own), the listener skips a change based on a value this device has already moved past, and `syncSettings()` awaits `chrome.storage.sync.set()`. The chain is per context, so a write from the Options page and one from the service worker are still not serialised against each other; the skip covers the stale-echo case either way.
 - **Frozen suspended tabs logged a spurious "Failed to initialise tab … timeout" and were counted as init failures during a busy cold start** (`gsTabCheckManager.js`): when Chrome freezes a backgrounded suspended tab (MV3 tab freezing, common while dozens of tabs restore at once), `checkSuspendedTab()`'s `getSuspendInfo`/`initTab` `chrome.tabs.sendMessage()` calls get no answer and hang until the queue's 60s job timeout, which then emits a `[W] Failed to initialise tab … timeout` and resolves the check as failed — dragging the startup tally down (e.g. `40 / 46 initialised successfully`) even though every such tab is a perfectly valid suspended placeholder whose title and favicon were already applied before it froze. `checkSuspendedTab()` now resolves `STATUS_SUSPENDED` immediately when `tab.frozen` instead of running the message round trip: a frozen page can't answer it, and it can't establish its own title/favicon until it thaws, so requeuing until then would only hold `performInitialisationTabChecks()`'s `Promise.all` pending (leaving `gsInitialisationMode` on) until the queue's ~5-minute requeue cap — ending in the very timeout warning and failed tally this change removes. The common case is a tab Chrome froze *after* it finished rendering, so its title and `data:` favicon are already in place (`ensureSuspendedTabTitleAndFaviconSet()` — logged distinctly); a tab frozen before its `initialiseSuspendedTab()` work ran is still accepted, and reopens on the default title/favicon until it is next focused (its own responsiveness check) or, for the favicon, the #474 backstop repairs it. The startup resuspend requeue now also passes `refetchTab: true` (matching the equivalent requeue in the missing-view branch) so the frozen check, and the checks after it, read the tab's state *after* the resuspend reload rather than a stale pre-reload snapshot. The blocked-`file://` handling (unsuspend a suspended `file://` tab when file-URL access is off) was moved ahead of the frozen shortcut so a frozen blocked-file tab is still navigated back to its original URL rather than accepted as healthy — that path only navigates the tab, it never messages the page. The unsuspended-tab path (`checkNormalTab()`) is deliberately left unchanged.
@@ -467,3 +471,63 @@ Entries under "Unreleased" live on a feature branch until merged into `master`.
 
 #### Geändert
 - `[FORK]`-Marker außerhalb des Moduls: 19 → 27. i18n-Keys nur `en`+`de`: 8 → 11.
+
+### [Fork] 2026-09-19 (3) — Tab-Strip-Kontextmenü auf alten Chromium-Versionen
+
+#### Behoben
+- **Extension-Kontextmenü erschien auf Chromium < 150 gar nicht** (`tgs.js`, Commit `65ae5988`): der `tab`-Context-Typ
+  für `chrome.contextMenus` (Tab-Leiste rechtsklick) ist eine Chromium-150-API (PSA der Chromium-Extensions-Gruppe).
+  Auf älteren Engines (z. B. Brave 1.84 / Chromium 142) warf jeder der 17 `tab_*`-`create()`-Aufrufe einen TypeError
+  und brach den kompletten Menü-Aufbau ab — auch das normale Seiten-Kontextmenü fehlte. `buildContextMenu()` fragt
+  jetzt vorab per Wegwerf-Probe-Item (`tab_context_support_probe`, unsichtbar, `contexts: ['tab']`) die Unterstützung
+  ab (`isTabStripContextSupported()`): deckt sowohl den synchronen TypeError (Argument-Check vor dem IPC-Versand,
+  `try/catch`) als auch den asynchronen `runtime.lastError`-Pfad ab; das Probe-Item wird wieder entfernt, das
+  Ergebnis entscheidet, ob die Tab-Strip-Sektion registriert wird. Auf Chromium 149+ (API nimmt Registrierung an,
+  UI-Rendering noch nicht shipped) erscheinen die Items automatisch, sobald der Browser das Feature ausrollt —
+  `onInstalled` feuert auch bei Browser-Updates, kein Extension-Update nötig.
+
+### [Fork] 2026-09-19 (4) — Externer Message-Kanal
+
+#### Behoben
+- **`externalMessageRequestListener` antwortete nie auf Pfaden mit `await`** (`background.js`, Commit `273b44cb`):
+  die Funktion war `async` und rief `sendResponse()` nach `await`-Punkten (`gsChrome.tabsGet`, `tgs.unsuspendTab`) auf.
+  Chrome hält den Message-Kanal aber nur offen, wenn der Listener synchron `true` zurückgibt — ein zurückgegebenes
+  Promise wird ignoriert, der Kanal schloss sofort, und jede Antwort nach dem ersten `await` ging still verloren
+  (externe Caller warteten bis zum Timeout). Umgestellt auf das Muster des internen `messageRequestListener`:
+  synchroner Listener mit `return true`, gesamte Async-Arbeit in einer detached IIFE, ergänzender `catch`, damit auch
+  eine Exception dem Sender eine (leere) Antwort liefert statt ewigem Hängen. Nebenbei bereinigt:
+  `sendResponse('Error: …', x)` übergab zwei Argumente (das zweite wird von Chrome verworfen) und ist jetzt
+  korrekte Template-Literal-Konkatenation; das unerreichbare `return true` im async-Body entfiel, der
+  Durchfall-Pfad antwortet jetzt mit `sendResponse()` statt gar nicht.
+
+### [Fork] 2026-09-19 (5) — Promise-Executoren, Lint-Baseline & CI
+
+#### Geändert
+- **12 `new Promise(async (resolve, reject) => …)`-Executoren entfernt** (`background.js`, `gsChrome.js`,
+  `gsFavicon.js`, `gsSession.js`, `gsTabSuspendManager.js` ×2, `gsUtils.js` ×3, `suspended.js`, `tgs.js` ×2):
+  ein async-Executor kann das äußere Promise per `throw` nie settle'n — der Fehler versickert im verworfenen
+  Executor-Promise, alles Wartende hängt ewig. Jede Stelle ist jetzt eine `async function`, deren Rejection der
+  Aufrufer bereits behandelt (z. B. fängt `gsTabQueue` Executor-Fehler über `Promise.resolve().then(executorFn).catch(exceptionFn)`),
+  bzw. ein synchroner Executor, der per Callback settle't (der `calculateTabStatus`-Wrapper in `tgs.js`, dessen
+  callback-basiertes Subjekt keinen Wert zurückgibt). Erfolgspfade unverändert; einziger beobachtbarer Unterschied:
+  ein echter Fehler führt jetzt zu einer Rejection statt ewigem Schweigen. Die Core-Regel `no-async-promise-executor`
+  ist in `eslint.config.mjs` auf `error`, damit das Muster nicht zurückkommt.
+- **CI und Lint-Baseline** (`.github/workflows/ci.yml`, `scripts/lint-baseline.js`, `lint-baseline.json`,
+  `package.json`, `eslint.config.mjs`): GitHub-Actions-Workflow bei jedem Push/PR, Gate auf neue Lint-Verstöße
+  (`npm run lint:ci`), `check-locales` non-blocking bis der Crowdin-Sync landet (16 Locales pending;
+  `continue-on-error` entfernen für hartes Gate). Die Baseline friert die ~1.060 Bestandsverstöße als
+  `file:line:rule`-Keys ein — CI scheitert nur an Verstößen, die eine Änderung **neu** einführt; der
+  Legacy-Backlog kann inkrementell abgebaut werden, verschwundene Einträge schrumpfen bei der nächsten
+  `npm run lint:baseline`-Generierung. Zusätzlich aktiviert: `eslint-plugin-promise` (`flat/recommended`), kuratiert
+  — Callback-Mixing- und await-to-Regeln aus (die `chrome.*`-APIs sind callback-basiert), die echten
+  Promise-Vertragsregeln (`always-return`, `catch-or-return`, `param-names`, `no-return-in-finally`, `valid-params`)
+  greifen ab jetzt auf neuem Code.
+
+#### Bekannt / akzeptiert
+- Die Lint-Baseline enthält auch die ~110 Befunde, die die Promise-Preset-Regeln (`always-return`,
+  `catch-or-return`, `param-names`) auf Legacy-Code werfen — eingefroren wie der Rest, neuer Code misst sich daran.
+- Vermerk: Bis einschließlich `[Fork] 2026-09-19 (2)` trugen die Fix-Hooks keine `[FORK]`-Marker; mit
+  (3)–(5) sind auch die Stellen aus (3) und (4) markiert.
+
+> Volltext aller Fork-Einträge (inklusive der hier nur referenzierten) und ihres Commit-Bezugs:
+> [`docs/changelog_eigen.md`](docs/changelog_eigen.md).

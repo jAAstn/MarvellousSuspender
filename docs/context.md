@@ -39,7 +39,9 @@ Manifest-Version **9.0.3**, Upstream-`CHANGELOG.md` hat bereits einen `[Unreleas
 
 ## Fork-Konventionen (zusätzlich)
 
-- Jede Zeile in einer Upstream-Datei, die vom Fork stammt, trägt `[FORK]`.
+- Jede Zeile in einer Upstream-Datei, die vom Fork stammt, trägt `[FORK]`. Ausnahme (ADR-010):
+  rein mechanische Refactors ohne Verhaltensänderung (z. B. die Promise-Executor-Umbauten) bleiben
+  markenfrei – sie sind im Katalog (§12) dokumentiert statt in der Marker-Liste.
 - Neue Logik → `src/js/gsCustomSuspend.js`, nicht in Upstream-Dateien.
 - Fork-Imports als **letzte** Zeile des Import-Blocks.
 - Fork-Doku ausschließlich in `docs/` (existiert upstream nicht) + Fork-Abschnitte **am Ende** von
@@ -61,6 +63,7 @@ Manifest-Version **9.0.3**, Upstream-`CHANGELOG.md` hat bereits einen `[Unreleas
 | [context.md](context.md) | dieses Dokument |
 | [architecture.md](architecture.md) | Aufbau der Extension, Tab-Lebenszyklus, Speicher-Layer |
 | [PERSOENLICHE_AENDERUNGEN.md](PERSOENLICHE_AENDERUNGEN.md) | Katalog aller Fork-Änderungen mit exakten Stellen |
+| [changelog_eigen.md](changelog_eigen.md) | Unser eigener Changelog-Verlauf (nummerierte Sektionen, Commit-Bezug) |
 | [UPSTREAM_UPDATE.md](UPSTREAM_UPDATE.md) | Merge-Anleitung + Checkliste |
 | [TESTING.md](TESTING.md) | Manuelle Testfälle + Node-Smoke-Test |
 | [DECISIONS.md](DECISIONS.md) | Architektur-Entscheidungen (ADR-Stil) |

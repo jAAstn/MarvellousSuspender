@@ -1,9 +1,30 @@
 # Testen (Fork)
 
 Der Upstream hat keine Test-Suite (`npm test` → `exit 1`). Wir kombinieren:
-1. Lint für die berührten Dateien,
+1. das Lint-Gate (Baseline-Mechanik, seit 19.09.2026 auch in CI),
 2. einen Node-Smoke-Test des Fork-Moduls (ohne Browser),
 3. eine manuelle Checkliste im Browser.
+
+## 1. Lint
+
+```sh
+npm run lint:ci        # Gate: scheitert nur an NEUEN Verstößen (Baseline-Abgleich)
+npm run lint           # volle Ausgabe inkl. der eingefrorenen Altlasten
+npm run lint:baseline  # Baseline neu generieren – nur bewusst, nach Regeländerung oder Fix-Runde
+```
+
+Die Baseline (`lint-baseline.json`) friert die ~1.060 Altverstöße als `file:line:rule`-Keys ein;
+neue Verstöße blockieren (Exit 1), behobene schrumpfen beim nächsten `--update`-Lauf.
+Mechanik: [scripts/lint-baseline.js](../scripts/lint-baseline.js), CI: `.github/workflows/ci.yml`.
+
+Für eine schnelle Einzelprüfung einer Fork-Datei unverändert:
+
+```sh
+npx eslint --quiet src/js/gsCustomSuspend.js src/js/tgs.js src/js/gsTabSuspendManager.js \
+  src/js/gsUtils.js src/js/popup.js src/js/suspended.js src/js/historyUtils.js src/js/history.js
+```
+Erwartung: keine Meldungen in Fork-Code (Altlasten wie `history.js … indent` stehen nur noch
+in der Baseline, nicht mehr in der `--quiet`-Ausgabe, wenn sie behoben sind).
 
 ## 1. Lint
 
@@ -105,6 +126,42 @@ console.log('smoke ok');
 - [ ] Unbenannte Gruppe wird **nicht** angeboten (gleiche Regel wie Kontextmenü).
 - [ ] Keine offenen benannten Gruppen → Select disabled mit Hinweistext, „Hinzufügen“ ausgegraut.
 - [ ] „Entfernen“ in der Liste → Gruppe taucht wieder im Select auf.
+
+### Tab-Strip-Kontextmenü (Katalog §10)
+- [ ] **Chromium < 150** (z. B. Brave 1.84): Extension über `brave://extensions` neu laden → Errors-Tab der
+      Extension bleibt **leer** (vorher: 17× Uncaught TypeError `contextMenus.create … contexts`), und das
+      normale Seiten-Kontextmenü zeigt die TMS-Einträge weiterhin.
+- [ ] Derselbe Brave-Build: Rechtsklick auf einen Tab in der Tab-Leiste → **kein** TMS-Untermenü (erwartet,
+      die API existiert dort nicht), keine Fehler in der SW-Console (`isTabStripContextSupported` loggt
+      `lastError.message` einmalig, sonst nichts).
+- [ ] **Chromium 150+**: Rechtsklick auf einen Tab in der Tab-Leiste → TMS-Untermenü erscheint mit allen
+      `tab_*`-Aktionen (Suspend/Unsuspend this tab, Pause auto-suspension, Never suspend domain/URL,
+      Suspend other tabs, …); Aktionen wirken auf den rechtsgeklickten Tab (auch wenn ein anderer aktiv ist).
+- [ ] Option „Add context menu“ aus-/einschalten → Menü wird korrekt entfernt/neu aufgebaut, Errors-Tab bleibt leer.
+
+### Externer Message-Kanal (Katalog §11)
+
+Hinweis: `externalMessageRequestListener` hängt an `chrome.runtime.onMessageExternal` und das Manifest hat
+**kein** `externally_connectable` → sendeberechtigt sind nur **andere Extensions** (alle), keine Web-Seiten.
+Test daher aus einer zweiten (unpacked) Test-Extension bzw. deren Service-Worker-Konsole:
+
+```js
+// <TMS_ID> = chrome.runtime.id aus der TMS-Konsole
+chrome.runtime.sendMessage('<TMS_ID>', { action: 'suspend' }, (r) => console.log('reply:', r));
+chrome.runtime.sendMessage('<TMS_ID>', { action: 'suspend', tabId: <id> }, (r) => console.log('reply:', r));
+chrome.runtime.sendMessage('<TMS_ID>', { action: 'unsuspend', tabId: <suspendedTabId> }, (r) => console.log('reply:', r));
+chrome.runtime.sendMessage('<TMS_ID>', { action: 'bogus' }, (r) => console.log('reply:', r)); // Error: unknown request.action
+```
+
+- [ ] Jeder Aufruf bekommt **sofort** ein `reply:` (auch bei `tabId`-Pfaden mit internem `await`) – vorher
+      liefen `tabId`/`unsuspend`-Pfade ins Timeout (undefined, `chrome.runtime.lastError` setzte ein).
+- [ ] Unbekanntes `action` antwortet mit dem `Error: unknown request.action`-String.
+- [ ] Ungültiger `tabId` (z. B. 999999999) antwortet mit `Error: no tab found with id: …` statt zu hängen.
+
+### Promise-Executoren / Regression (Katalog §12)
+- [ ] Normale Bedienung (suspend, unsuspend, Popup, Options-Save, Backup-Seite) unverändert – die Umbauten
+      sind erfolgspfad-identisch; nur neue Fehler würden jetzt als Rejection sichtbar statt still zu hängen.
+- [ ] `npm run lint:ci` grün (die 12 Umbauten dürfen keine neuen Promise-Regel-Verstöße melden).
 
 ### Regression (Upstream-Verhalten unverändert)
 - [ ] Leere Custom-Liste: Suspend/Unsuspend, Whitelist, Always-Suspend, Tab-Gruppen, „Suspend all“ wie vorher.

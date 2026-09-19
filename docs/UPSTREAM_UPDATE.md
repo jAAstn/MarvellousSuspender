@@ -68,7 +68,7 @@ git merge --continue
 ### Pflicht-Checks nach jedem Merge
 
 ```sh
-# a) Alle Hook-Stellen noch vorhanden? (Soll: 27 Treffer außerhalb gsCustomSuspend.js, Stand 09/2026)
+# a) Alle Hook-Stellen noch vorhanden? (Soll: 30 Treffer außerhalb gsCustomSuspend.js, Stand 09/2026)
 grep -rn "\[FORK\]" src --include=*.js --include=*.html --include=*.css | grep -v gsCustomSuspend.js | wc -l
 
 # b) Signaturen, die der Fork erweitert, noch kompatibel?
