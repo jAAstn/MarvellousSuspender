@@ -1203,6 +1203,7 @@ export const tgs = (function() {
     // If the tab has transitioned to discarded, we don't want to initialize it?
     if ( (changeInfo.status && changeInfo.status === 'complete') /* || changeInfo.discarded */ ) {
       // gsUtils.log( tab.id, 'tgs', 'handleSuspendedTabStateChanged complete or discarded' );
+      gsCustomSuspend.removeTabHistoryForSuspendedTab(tab.url); // [FORK] retry of the post-suspend history cleanup
       gsTabSuspendManager.unqueueTabForSuspension(tab); //safety precaution
       // NOTE: See above as to why this is commented out
       // const shouldInitTab = await getTabStatePropForTabId( tab.id, STATE_INITIALISE_SUSPENDED_TAB );

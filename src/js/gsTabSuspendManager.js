@@ -284,6 +284,7 @@ export const gsTabSuspendManager = (function() {
       gsUtils.log(tab.id, 'Suspending tab');
       await tgs.setTabStatePropForTabId(tab.id, tgs.STATE_INITIALISE_SUSPENDED_TAB, true);
       gsChrome.tabsUpdate(tab.id, { url: suspendedUrl }).then(updatedTab => {
+        gsCustomSuspend.removeTabHistoryForSuspendedTab(suspendedUrl); // [FORK] keep placeholders out of history
         resolve(updatedTab !== null);
       });
     });
