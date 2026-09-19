@@ -6,8 +6,8 @@ Priorität: 🔴 bald · 🟡 sinnvoll · 🟢 nice-to-have · ⚪ Idee
 
 - 🔴 **Manueller Test der Fork-Features im Browser** nach [TESTING.md](TESTING.md) – auf dem Dev-Rechner ist kein Chrome
   verfügbar, die Änderungen wurden nur per Lint + Node-Smoke-Test verifiziert.
-- 🔴 **Commit aufteilen**: ein Commit pro Feature (Custom Times, Popup-Zeile, Favicon, History, ZeroRAM, Docs) –
-  hält spätere Rebase-Konflikte lokal.
+- ✅ ~~Commit aufteilen~~ – erledigt (6 Feature-Commits + 2 Tab-Groups-Commits, 19.09.2026).
+- 🟡 **Tab-Health-Fix upstream melden** (False-Positive bei `DISCARD_AFTER_SUSPEND`, siehe Katalog §7) – reiner Bugfix, PR-Kandidat.
 - 🟡 **Branch `Eigen` löschen** (identisch mit `fable`-Basis, keine eigenen Commits).
 - 🟡 **„Test list“-Button für Custom-Times** analog zu Whitelist/Always-Suspend (`testWhitelistBtn`-Pattern in
   `options.js`): zeigt, welche offenen Tabs von welcher Regel mit welchen Minuten getroffen werden.

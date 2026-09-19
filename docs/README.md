@@ -18,6 +18,6 @@ Dieses Verzeichnis existiert **nur im Fork** (nicht im Upstream) und ist damit k
 ```sh
 git fetch upstream && git checkout master && git merge --ff-only upstream/master
 git checkout fable && git merge master
-grep -rn "\[FORK\]" src --include=*.js --include=*.html --include=*.css | grep -v gsCustomSuspend.js | wc -l   # Soll: 19
+grep -rn "\[FORK\]" src --include=*.js --include=*.html --include=*.css | grep -v gsCustomSuspend.js | wc -l   # Soll: 27
 npx eslint --quiet src/js/gsCustomSuspend.js
 ```

@@ -93,7 +93,20 @@ console.log('smoke ok');
       „ZeroRAM Suspender: 1 tabs“ erkannt → Migrate → Tab zeigt TMS-Platzhalter mit Titel „Beispiel“, Unsuspend → example.com.
 - [ ] Great-Suspender-Format (`#ttl=…&uri=…`) migriert weiterhin per Host-Swap.
 
+### Tab Health: kein False-Positive bei discardeten Gruppen-Tabs
+- [ ] Option „Apply your browser's built-in memory-saving when suspending“ **an**, benannte Gruppe mit suspendiertem Tab
+      → Tab Health → Scan: „grouped tabs in broken state“ = **0 ✓**, kein Repair-Button.
+- [ ] Option **aus**, Chrome < 150, Gruppen-Tab von Chrome selbst discarded (z. B. `chrome://discards`) → wird weiterhin gemeldet (Upstream-Verhalten).
+- [ ] Brave-Pfad: gruppierter Tab mit `chrome://newtab/` wird weiterhin gezählt.
+
+### Optionen: Never-Suspend-Gruppe per Picker hinzufügen
+- [ ] Benannte Gruppe offen → unter der Liste erscheint Select mit „<Name> (<Farbe>)“ + „Hinzufügen“.
+- [ ] Hinzufügen → Gruppe erscheint in der Liste mit „matches 1 open group“, verschwindet aus dem Select; Tabs der Gruppe zeigen im Popup „Tab is in a group that is never suspended“.
+- [ ] Unbenannte Gruppe wird **nicht** angeboten (gleiche Regel wie Kontextmenü).
+- [ ] Keine offenen benannten Gruppen → Select disabled mit Hinweistext, „Hinzufügen“ ausgegraut.
+- [ ] „Entfernen“ in der Liste → Gruppe taucht wieder im Select auf.
+
 ### Regression (Upstream-Verhalten unverändert)
 - [ ] Leere Custom-Liste: Suspend/Unsuspend, Whitelist, Always-Suspend, Tab-Gruppen, „Suspend all“ wie vorher.
 - [ ] Options speichern/laden ohne Fehler in der Konsole; Sync (zweites Profil) überträgt `gsCustomSuspendTimes`.
-- [ ] `npm run check-locales` → genau die 8 Fork-Keys in 16 Locales als `missing`, sonst nichts Neues.
+- [ ] `npm run check-locales` → genau die 11 Fork-Keys in 16 Locales als `missing`, sonst nichts Neues.

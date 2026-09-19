@@ -278,6 +278,12 @@ import  { tgs }                   from './tgs.js';
             }
             break;
           }
+          case 'addNeverSuspendGroup' : { // [FORK] Options picker, mirrors removeNeverSuspendGroup
+            if (typeof request.groupKey === 'string' && gsUtils.parseTabGroupKey(request.groupKey)) {
+              await tgs.setTabGroupNeverSuspend(request.groupKey, true);
+            }
+            break;
+          }
           case 'suspendSelected' : {
             tgs.suspendSelectedTabs();
             break;

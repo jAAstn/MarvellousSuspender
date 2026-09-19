@@ -457,3 +457,13 @@ Entries under "Unreleased" live on a feature branch until merged into `master`.
 #### Bekannt / akzeptiert
 - `npm run check-locales` meldet die 8 neuen i18n-Keys in 16 Locales als fehlend (nur `en` + `de` gepflegt).
 - Custom-Regel `0` erzeugt Status `never` → Popup zeigt den Upstream-Text ohne „(eigene Regel)“.
+### [Fork] 2026-09-19 (2) — Tab Groups
+
+#### Behoben
+- **Tab Health meldete gesunde Gruppen-Tabs als „Tab Groups bug"** (`health.js`, `gsCustomSuspend.js`): `scanTab()` zählte jeden Tab als „broken", der gruppiert, suspendiert und discarded war. Mit aktivierter Option „Apply your browser's built-in memory-saving when suspending" discarded TMS suspendierte Tabs aber absichtlich – jeder gesunde Gruppen-Tab landete im Repair-Vorschlag, und „Repair" (Tab schließen + neu anlegen) führte nach dem nächsten Discard sofort wieder zur Meldung. Neu: `gsCustomSuspend.shouldIgnoreDiscardedGroupedTabs()` – ist die Option aktiv **oder** läuft Chrome ≥ 150 (crbug.com/522338670 dort laut Upstream-CHANGELOG nativ gefixt), wird der Chrome/Edge-Pfad übersprungen. Der Brave-Pfad (`chrome://newtab/`) bleibt unverändert. Upstream-Kandidat.
+
+#### Hinzugefügt
+- **Never-Suspend-Gruppen direkt in den Optionen hinzufügen** (`options.html`, `options.js`, `background.js`, `style.css`, `_locales/{en,de}`): unter „Never suspend tabs in the following tab groups" gibt es jetzt ein Select mit allen offenen, **benannten** Gruppen, die noch nicht auf der Liste stehen, plus „Hinzufügen" – bisher ging das nur per Rechtsklick-Kontextmenü. Gleiche Regeln wie dort (nur Live-Key benannter Gruppen, Name+Farbe = ein Eintrag) und derselbe Service-Worker-Pfad wie der Upstream-„Remove"-Link (`tgs.setTabGroupNeverSuspend(groupKey, true)` über neue Message `addNeverSuspendGroup`), damit Timer-Neu-Armierung und Incognito-Verhalten identisch bleiben.
+
+#### Geändert
+- `[FORK]`-Marker außerhalb des Moduls: 19 → 27. i18n-Keys nur `en`+`de`: 8 → 11.

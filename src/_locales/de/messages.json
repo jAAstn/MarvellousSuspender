@@ -631,6 +631,15 @@
   "html_options_never_suspend_groups_remove": {
     "message": "Entfernen"
   },
+  "html_options_never_suspend_groups_add": {
+    "message": "Hinzufügen"
+  },
+  "html_options_never_suspend_groups_add_placeholder": {
+    "message": "Offene Tab-Gruppe auswählen…"
+  },
+  "html_options_never_suspend_groups_add_none": {
+    "message": "Keine offenen benannten Tab-Gruppen zum Hinzufügen"
+  },
   "html_options_other_enable_context_menu": {
     "message": "Füge The Marvellous Suspender zum Rechtsklick-Kontextmenü hinzu"
   },

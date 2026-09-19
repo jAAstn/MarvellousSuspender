@@ -16,7 +16,7 @@ Browser-Checkliste. Keine Test-Dateien im Repo.
 ## ADR-006 · i18n nur `en` + `de`
 
 **Kontext:** 19 Locales; `check-locales` flaggt fehlende Keys. Alle 19 anzufassen = 19 Konfliktdateien.
-**Entscheidung:** `en` (Default-Locale, Chrome-Fallback) + `de`. `check-locales`-Meldungen für die 8 Fork-Keys
+**Entscheidung:** `en` (Default-Locale, Chrome-Fallback) + `de`. `check-locales`-Meldungen für die Fork-Keys (aktuell 11)
 sind akzeptiert.
 **Konsequenzen:** Nutzer anderer Sprachen sehen die Fork-Strings englisch. Kein Crowdin-Sync für den Fork.
 

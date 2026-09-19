@@ -7,7 +7,7 @@
 > `grep -rn "\[FORK\]" src` listet **alle** Berührungspunkte → Pflicht-Check nach jedem Upstream-Merge
 > (siehe [UPSTREAM_UPDATE.md](UPSTREAM_UPDATE.md)).
 
-## Übersicht der Hooks (19 Stellen außerhalb des Moduls)
+## Übersicht der Hooks (27 Stellen außerhalb des Moduls)
 
 | Datei | Anzahl | Was |
 |---|---|---|
@@ -18,14 +18,17 @@
 | `src/js/gsTabDiscardManager.js` | 1 | `favIconUrl` durchreichen |
 | `src/js/gsSession.js` | 1 | `favIconUrl` durchreichen |
 | `src/js/suspended.js` | 3 | Import, `getPassthroughFaviconMeta()`, Aufruf in `initTab()` |
-| `src/js/options.js` | 1 | `elementPrefMap.customSuspendTimes` |
-| `src/options.html` | 1 | Textarea-Block |
+| `src/js/options.js` | 3 | `elementPrefMap.customSuspendTimes`, Aufruf + Funktion `renderNeverSuspendGroupPicker()` |
+| `src/options.html` | 2 | Textarea-Block, Gruppen-Picker-Block |
+| `src/js/health.js` | 4 | Import, Flag `_ignoreDiscardedGrouped`, Setzen in `scan()`, Prüfung in `scanTab()` |
+| `src/js/background.js` | 1 | Message-Case `addNeverSuspendGroup` |
+| `src/css/style.css` | 1 | `.tabGroupPicker` |
 | `src/js/popup.js` | 3 | Import, `getSuspendTimeDetail()`, Aufruf in `setStatus()` |
 | `src/css/popup.css` | 1 | `.statusTimeDetail` |
 | `src/js/history.js` | 2 | Import, `knownExtensions[ZeroRAM]` |
 | `src/js/historyUtils.js` | 2 | Import, ZeroRAM-Konvertierung in `migrateTabs()` |
-| `src/_locales/en/messages.json` | 8 Keys | (nicht markiert – JSON erlaubt keine Kommentare) |
-| `src/_locales/de/messages.json` | 8 Keys | dito |
+| `src/_locales/en/messages.json` | 11 Keys | (nicht markiert – JSON erlaubt keine Kommentare) |
+| `src/_locales/de/messages.json` | 11 Keys | dito |
 | `.gitignore` | 1 | `!/docs` – Upstream ignoriert `/docs`, der Fork versioniert es (Zeile am Dateiende) |
 | `CHANGELOG.md`, `README.md` | je 1 Abschnitt | Fork-Abschnitt am Dateiende (Deutsch) |
 
@@ -165,10 +168,51 @@ behalten** (`git checkout --ours`).
 
 ---
 
-## 7. i18n
+## 7. Tab Health: False-Positive „grouped tabs in broken state“
+
+**Problem (Upstream):** `health.js scanTab()` zählt jeden Tab als „Tab Groups bug“, der gleichzeitig
+gruppiert, suspendiert **und** discarded ist. Mit aktivierter Option „Apply your browser's built-in
+memory-saving when suspending“ (`DISCARD_AFTER_SUSPEND`) discarded TMS suspendierte Tabs aber absichtlich
+→ jeder gesunde Gruppen-Tab wird gemeldet, „Repair“ schließt/erstellt ihn neu, er wird sofort wieder
+discarded → beim nächsten Scan wieder „broken“. Der zugrunde liegende Chrome-Bug (crbug.com/522338670)
+ist laut Upstream-CHANGELOG ab **Chrome 150** nativ gefixt.
+
+**Fix:** `gsCustomSuspend.shouldIgnoreDiscardedGroupedTabs()` → `true`, wenn die Option aktiv ist **oder**
+`gsUtils.getChromeVersion() >= 150`. `health.js` setzt das Ergebnis einmal pro `scan()` in ein Modul-Flag
+und überspringt dann den Chrome/Edge-Pfad (`tabGroupsDiscarded`). Der Brave-Pfad (`chrome://newtab/`)
+bleibt unberührt.
+
+**Upstream-Kandidat:** ja – reiner Bugfix, sollte als PR/Issue gemeldet werden.
+
+---
+
+## 8. Optionen: Never-Suspend-Gruppen direkt hinzufügen
+
+**Beschreibung:** Upstream erlaubt das Hinzufügen einer Gruppe zur Liste „Never suspend tabs in the
+following tab groups“ nur per Rechtsklick-Kontextmenü; die Options-Seite zeigt/entfernt nur. Der Fork
+ergänzt darunter ein `<select>` mit allen **offenen, benannten** Gruppen, die noch nicht in der Liste
+sind, plus „Add“.
+
+**Regeln:** Nur der Live-Key (`gsUtils.getTabGroupKey(group)`, also nur benannte Gruppen) – dieselbe
+Regel wie im Kontextmenü („name the group before exempting it“). Zwei Gruppen mit gleichem Namen+Farbe
+sind ein Eintrag (wie in der Liste). Das Hinzufügen läuft über den Service Worker
+(`tgs.setTabGroupNeverSuspend(groupKey, true)`), exakt der Pfad des Upstream-„Remove“-Links – Timer-
+Neu-Armierung und Incognito-Schutz sind damit identisch.
+
+**Dateien:**
+- `options.html` – `<div class="tabGroupPicker">` mit `#neverSuspendGroupsSelect` + `#neverSuspendGroupsAddBtn`
+- `options.js` – `renderNeverSuspendGroupPicker(listedKeys, openGroups)`, aufgerufen am Ende von
+  `renderNeverSuspendGroups()` (deckt Add + Remove ab)
+- `background.js` – Message-Case `addNeverSuspendGroup` (validiert mit `gsUtils.parseTabGroupKey`)
+- `style.css` – `.tabGroupPicker`, `.tabGroupPicker a.disabled`
+- Locales `en`/`de`: `html_options_never_suspend_groups_add`, `…_add_placeholder`, `…_add_none`
+
+---
+
+## 9. i18n
 
 Nur `en` (Default-Locale, Chrome-Fallback) und `de` gepflegt. `npm run check-locales` meldet deshalb
-die 8 Keys in 16 weiteren Locales als `missing` – **bekannt und akzeptiert**. Die Keys:
+die 11 Keys in 16 weiteren Locales als `missing` – **bekannt und akzeptiert**. Die Keys:
 
 ```
 html_options_always_suspend_custom_times_title
@@ -179,4 +223,7 @@ html_options_always_suspend_custom_times_tooltip_line2b
 js_popup_suspend_time_minutes      ($mins$)
 js_popup_suspend_time_hours        ($hours$)
 js_popup_suspend_time_custom
+html_options_never_suspend_groups_add
+html_options_never_suspend_groups_add_placeholder
+html_options_never_suspend_groups_add_none
 ```

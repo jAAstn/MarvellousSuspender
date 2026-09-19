@@ -631,6 +631,15 @@
   "html_options_never_suspend_groups_remove": {
     "message": "Remove"
   },
+  "html_options_never_suspend_groups_add": {
+    "message": "Add"
+  },
+  "html_options_never_suspend_groups_add_placeholder": {
+    "message": "Select an open tab group…"
+  },
+  "html_options_never_suspend_groups_add_none": {
+    "message": "No open named tab groups to add"
+  },
   "html_options_other_enable_context_menu": {
     "message": "Add The Marvellous Suspender to right-click context menu"
   },

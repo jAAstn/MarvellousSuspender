@@ -855,6 +855,25 @@ a.btn.btnNeg:hover {
   font-size: var(--text-sm);
 }
 
+/* [FORK] picker row under the never-suspend-groups list (options.html) */
+.tabGroupPicker {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  column-gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.tabGroupPicker select {
+  flex: 0 1 320px;
+  min-width: 0;
+}
+
+.tabGroupPicker a.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
 /* ── Changelog modal ─────────────────────────────────────────────────────── */
 
 #changelogModal .modalDialog {

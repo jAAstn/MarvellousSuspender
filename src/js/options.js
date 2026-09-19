@@ -109,6 +109,58 @@ import  { tgs }                   from './tgs.js';
 
       listEl.appendChild(li);
     }
+
+    await renderNeverSuspendGroupPicker(groupKeys, openGroups); // [FORK]
+  }
+
+  // [FORK] Select + "Add" for open, named groups that are not on the list yet. The worker owns
+  // the list (same path as the context menu), so adding also re-arms/unsuspends as needed.
+  async function renderNeverSuspendGroupPicker(listedKeys, openGroups) {
+    const pickerEl = document.getElementById('neverSuspendGroupsPicker');
+    const selectEl = document.getElementById('neverSuspendGroupsSelect');
+    const addEl    = document.getElementById('neverSuspendGroupsAddBtn');
+    if (!pickerEl || !selectEl || !addEl) {
+      return;
+    }
+
+    // Live key only (named groups), same rule as the context menu's "name the group before
+    // exempting it". One option per distinct key: two groups sharing name+colour are one entry.
+    const candidates = new Map();
+    for (const group of openGroups) {
+      const key = gsUtils.getTabGroupKey(group);
+      if (key && !listedKeys.includes(key) && !candidates.has(key)) {
+        candidates.set(key, group);
+      }
+    }
+
+    selectEl.innerHTML = '';
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = gsUtils.getMessage(candidates.size
+      ? 'html_options_never_suspend_groups_add_placeholder'
+      : 'html_options_never_suspend_groups_add_none');
+    selectEl.appendChild(placeholder);
+    for (const [key, group] of candidates) {
+      const opt = document.createElement('option');
+      opt.value = key;
+      // textContent: the title is free text typed by the user
+      opt.textContent = `${group.title} (${group.color})`;
+      selectEl.appendChild(opt);
+    }
+    const empty = candidates.size === 0;
+    selectEl.disabled = empty;
+    addEl.classList.toggle('disabled', empty);
+    addEl.setAttribute('aria-disabled', String(empty));
+
+    addEl.onclick = async (event) => {
+      event.preventDefault();
+      const groupKey = selectEl.value;
+      if (!groupKey) {
+        return;
+      }
+      await chrome.runtime.sendMessage({ action: 'addNeverSuspendGroup', groupKey });
+      await renderNeverSuspendGroups();
+    };
   }
 
   function selectComboBox(element, key) {

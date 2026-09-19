@@ -68,7 +68,7 @@ git merge --continue
 ### Pflicht-Checks nach jedem Merge
 
 ```sh
-# a) Alle Hook-Stellen noch vorhanden? (Soll: 19 Treffer außerhalb gsCustomSuspend.js, Stand 09/2026)
+# a) Alle Hook-Stellen noch vorhanden? (Soll: 27 Treffer außerhalb gsCustomSuspend.js, Stand 09/2026)
 grep -rn "\[FORK\]" src --include=*.js --include=*.html --include=*.css | grep -v gsCustomSuspend.js | wc -l
 
 # b) Signaturen, die der Fork erweitert, noch kompatibel?
@@ -96,6 +96,9 @@ node -e "for (const l of ['en','de']) JSON.parse(require('fs').readFileSync('src
 | `suspended.js initTab()` das Favicon-Setup verschiebt | `getPassthroughFaviconMeta()` davor einhängen |
 | `popup.js setStatus()` umbaut | `statusDetail += await getSuspendTimeDetail(status)` direkt vor dem `innerHTML`-Write |
 | `historyUtils.migrateTabs()` ändert | `convertForeignSuspendedUrl(url)` vor dem Host-Swap behalten |
+| `health.js scanTab()`/`scan()` umbaut | Flag `_ignoreDiscardedGrouped` muss vor der Tab-Schleife gesetzt und im Chrome/Edge-Zweig geprüft werden. Baut Upstream den Fix selbst ein → Hook entfernen |
+| `options.js renderNeverSuspendGroups()` umbaut | `renderNeverSuspendGroupPicker(groupKeys, openGroups)` am Ende aufrufen; Signatur ggf. anpassen |
+| `background.js` Message-Switch umbaut | Case `addNeverSuspendGroup` neben `removeNeverSuspendGroup` behalten |
 | neue Settings-Keys in `gsStorage` einführt | keine Aktion, unser Key hängt am Block-Ende |
 | eigene Custom-Timeout-Funktion einführt (Feature-Request upstream?) | Fork-Feature 1 evtl. **entfernen** und Migration des Storage-Keys erwägen |
 
