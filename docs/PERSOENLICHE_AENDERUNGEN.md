@@ -1,19 +1,19 @@
 # Katalog der persönlichen Änderungen
 
-> **Stand:** 19.09.2026 · Basis: `upstream/master` (gioxx/MarvellousSuspender, v9.0.3, Commit `25574c39`)
+> **Stand:** 19.09.2026 (2) · Basis: `upstream/master` (gioxx/MarvellousSuspender, v9.0.3, Commit `25574c39`)
 > **Prinzip:** Alle Fork-Logik lebt in **einem** eigenen Modul `src/js/gsCustomSuspend.js`.
 > Upstream-Dateien enthalten nur minimale Hooks, jede Zeile ist mit `// [FORK]` (JS/CSS)
 > bzw. `<!-- [FORK] -->` (HTML) markiert.
 > `grep -rn "\[FORK\]" src` listet **alle** Berührungspunkte → Pflicht-Check nach jedem Upstream-Merge
 > (siehe [UPSTREAM_UPDATE.md](UPSTREAM_UPDATE.md)).
 
-## Übersicht der Hooks (27 Stellen außerhalb des Moduls)
+## Übersicht der Hooks (30 Stellen außerhalb des Moduls)
 
 | Datei | Anzahl | Was |
 |---|---|---|
 | `src/js/gsStorage.js` | 2 | Key `CUSTOM_SUSPEND_TIMES` + Default `''` |
 | `src/js/gsUtils.js` | 3 | Import, `generateSuspendedUrl(…, favIconUrl)`, Settings-Change-Trigger |
-| `src/js/tgs.js` | 4 | Import, Timer-Override, Status-Override, History-Retry |
+| `src/js/tgs.js` | 6 | Import, Timer-Override, Status-Override, History-Retry, Tab-Strip-Kontextmenü-Probe (2×) |
 | `src/js/gsTabSuspendManager.js` | 5 | Import, 2× `favIconUrl`, History-Cleanup, Eligibility-Override |
 | `src/js/gsTabDiscardManager.js` | 1 | `favIconUrl` durchreichen |
 | `src/js/gsSession.js` | 1 | `favIconUrl` durchreichen |
@@ -21,7 +21,7 @@
 | `src/js/options.js` | 3 | `elementPrefMap.customSuspendTimes`, Aufruf + Funktion `renderNeverSuspendGroupPicker()` |
 | `src/options.html` | 2 | Textarea-Block, Gruppen-Picker-Block |
 | `src/js/health.js` | 4 | Import, Flag `_ignoreDiscardedGrouped`, Setzen in `scan()`, Prüfung in `scanTab()` |
-| `src/js/background.js` | 1 | Message-Case `addNeverSuspendGroup` |
+| `src/js/background.js` | 2 | Message-Case `addNeverSuspendGroup`, externer Message-Listener (detached-IIFE-Rewrite) |
 | `src/css/style.css` | 1 | `.tabGroupPicker` |
 | `src/js/popup.js` | 3 | Import, `getSuspendTimeDetail()`, Aufruf in `setStatus()` |
 | `src/css/popup.css` | 1 | `.statusTimeDetail` |
@@ -227,3 +227,88 @@ html_options_never_suspend_groups_add
 html_options_never_suspend_groups_add_placeholder
 html_options_never_suspend_groups_add_none
 ```
+
+---
+
+## 10. Tab-Strip-Kontextmenü: Chromium-Fähigkeitsprobe
+
+**Problem:** Der `tab`-Context-Typ für `chrome.contextMenus` (Rechtsklick auf einen Tab in der Tab-Leiste)
+ist eine **Chromium-150-API** ([PSA der Chromium-Extensions-Gruppe](https://groups.google.com/a/chromium.org/g/chromium-extensions/c/RReE8dtY4Ok/m/hOQaYDNYAwAJ)).
+Auf älteren Engines (z. B. Brave 1.84 / Chromium 142) warf jeder der 17 `tab_*`-`create()`-Aufrufe einen
+TypeError und brach den **kompletten** Menü-Aufbau ab — auch das normale Seiten-Kontextmenü fehlte
+(dunkler Uncaught-in-promise-Fehler im `brave://extensions`-Errors-Tab, `js/tgs.js:2149`).
+
+**Fix (`tgs.js`, Commit `65ae5988`, `[FORK]`-markiert):**
+- `isTabStripContextSupported()` registriert ein unsichtbares Wegwerf-Probe-Item
+  (`tab_context_support_probe`, `contexts: ['tab']`) und wertet den Create-Callback aus.
+  Deckt beide Fehlermodi ab: den **synchronen** TypeError (Argument-Check läuft vor dem IPC-Versand →
+  `try/catch` um den Aufruf) und den **asynchronen** `runtime.lastError`-Pfad (Callback feuert mit Fehler).
+  Das `lastError` wird vor dem `remove()` in eine Variable kopiert (`remove()` würde es sonst überschreiben);
+  der `remove()`-Fehler selbst wird per `void chrome.runtime.lastError` geschluckt (Item existiert im
+  Fehlerfall nicht).
+- `buildContextMenu()` (jetzt `async`) registriert die Tab-Strip-Sektion nur noch, wenn der Probe erfolgreich
+  war. Die Seitenmenü-Items werden weiterhin synchron vor dem ersten `await` registriert — keine Verzögerung
+  für das Hauptmenü.
+- **Selbstheilung beim Browser-Update:** `onInstalled` feuert auch bei Browser-Updates → nach einem
+  Brave-Update auf Chromium 150+ läuft der Probe erneut, ohne Extension-Update.
+- Auf Chromium 149+ nimmt die API die Registrierung an, auch wenn das UI-Rendering noch nicht shipped ist
+  (auf Chrome 149 verifiziert) — die Items erscheinen dann automatisch mit dem Feature-Rollout.
+
+**Offen (Roadmap 🟡):** Probe-Ergebnis nicht memoisiert — läuft bei jedem Rebuild (Installation, Extension-
+Update, Änderung der Kontextmenü-Einstellung). Eine Modul-Variable würde den IPC-Round-Trip sparen und ein
+kleines Doppel-Registrierungs-Race bei nahezu gleichzeitigem Aufruf entschärfen.
+
+---
+
+## 11. Externer Message-Kanal: detached-IIFE-Muster
+
+**Problem:** `externalMessageRequestListener` in `background.js` (antwortet auf `chrome.runtime.sendMessage`
+externer Caller, Aktionen `suspend`/`unsuspend`) war eine `async function`, die `sendResponse()` nach
+`await`-Punkten (`gsChrome.tabsGet`, `tgs.unsuspendTab`) aufrief. Chrome hält den Message-Kanal aber nur
+offen, wenn der Listener **synchron** `true` zurückgibt — ein zurückgegebenes Promise wird ignoriert. Der
+Kanal schloss sofort, jede Antwort nach dem ersten `await` ging still verloren, externe Caller warteten bis
+zum Timeout.
+
+**Fix (`background.js`, Commit `273b44cb`, `[FORK]`-markiert):** Umstellung auf das Muster des internen
+`messageRequestListener`:
+- synchroner Listener, der am Ende `return true` ausführt (Kanal bleibt offen),
+- gesamte Async-Arbeit in einer detached `(async () => { … })()`-IIFE,
+- ergänzender `catch` um den kompletten IIFE-Body: wirft z. B. `tabsGet` oder `unsuspendTab`, bekommt der
+  externe Caller jetzt eine (leere) Antwort statt ewig zu hängen,
+- Bereinigung: `sendResponse('Error: …', x)` übergab zwei Argumente (Chrome verwirft das zweite still) →
+  korrekte Template-Literals; das im async-Body unerreichbare `return true` entfiel, der Durchfall-Pfad
+  antwortet jetzt mit `sendResponse()` statt gar nicht.
+
+---
+
+## 12. Promise-Executoren, Lint-Baseline & CI
+
+**Problem 1 — `new Promise(async …)`-Antipattern (12 Stellen in 8 Dateien):** ein async-Executor kann das
+äußere Promise per `throw` **nie** settle'n — der Fehler versickert im verworfenen Executor-Promise, alles
+Wartende hängt ewig.
+
+**Fix:** jede Stelle ist jetzt eine `async function`, deren Rejection der Aufrufer bereits behandelt
+(verifiziert: `gsTabQueue` fängt Executor-Fehler über `Promise.resolve().then(executorFn).catch(exceptionFn)`),
+bzw. ein synchroner Executor, der per Callback settle't — der `calculateTabStatus`-Wrapper in `tgs.js` blieb
+bewusst synchron, weil das callback-basierte Subjekt **keinen** Rückgabewert liefert (ein `(s) => s`-Rewrite
+hätte `undefined` geliefert). Erfolgspfade unverändert; einziger Unterschied: echte Fehler werden zu
+Rejections statt ewigem Schweigen.
+
+**Problem 2 — keine CI, 207+ Lint-Errors als wachsender Backlog:** nichts verhinderte, dass neue Verstöße
+sich mit den Altlasten vermischen.
+
+**Fix:**
+- `scripts/lint-baseline.js` + `lint-baseline.json`: Baseline friert die ~1.060 Bestandsverstöße als
+  `file:line:rule`-Keys ein. `npm run lint:ci` (Gate) scheitert nur an **neuen** Verstößen;
+  `npm run lint:baseline` regeneriert (Backlog-Abbau schrumpft die Baseline).
+- `.github/workflows/ci.yml`: Lint-Gate bei jedem Push/PR; `check-locales` non-blocking
+  (`continue-on-error`) bis der Crowdin-Sync die 16 pending Locales liefert.
+- `eslint.config.mjs`: `eslint-plugin-promise` (`flat/recommended`) aktiviert, kuratiert — Callback-Mixing-
+  und await-to-Regeln aus (die `chrome.*`-APIs sind callback-basiert); die echten Promise-Vertragsregeln
+  (`always-return`, `catch-or-return`, `param-names`, `no-return-in-finally`, `valid-params`) greifen auf
+  neuem Code. **Stolperstein dokumentiert:** `no-async-promise-executor` ist eine **Core**-ESLint-Regel, keine
+  Plugin-Regel — steht jetzt explizit auf `error`.
+
+**Grundlage:** `docs/DECISIONS.md` ADR-010; Upstream-Dateien berührt: `background.js`, `gsChrome.js`,
+`gsFavicon.js`, `gsSession.js`, `gsTabSuspendManager.js`, `gsUtils.js`, `suspended.js`, `tgs.js` —
+semantisch identische Umbauten ohne `[FORK]`-Marker (kein Verhaltenwechsel, siehe ADR-010).
