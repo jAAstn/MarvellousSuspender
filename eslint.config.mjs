@@ -23,7 +23,7 @@ export default defineConfig(
   tseslint.configs.eslintRecommended,     // This is recommended to be used after eslint.configs.recommended
   tseslint.configs.strictTypeChecked,     // strictTypeChecked contains recommended, recommendedTypeChecked, and strict
   tseslint.configs.stylisticTypeChecked,
-  // pluginPromise.configs['flat/recommended'],   // @TODO: Enable this plugin eventually, or consider the full airbnb config
+  pluginPromise.configs['flat/recommended'],   // promise rules; curated in 'main rules' below
 
   {
     name: '--- languageOptions',
@@ -83,7 +83,7 @@ export default defineConfig(
       'strict'                          : ['warn'],
 
       // @TODO: phase 3 remove these overrides
-      'no-async-promise-executor'                                 : ['off'],
+      // (no-async-promise-executor now comes from pluginPromise — see below)
       'no-prototype-builtins'                                     : ['off'],
       'no-redeclare'                                              : ['off'],
       '@typescript-eslint/dot-notation'                           : ['off'],  // revert to override below
@@ -152,6 +152,25 @@ export default defineConfig(
       'no-undef'                      : ['error'],
       'prefer-spread'                 : ['error'],
       'semi'                          : ['error'],
+
+      // eslint-plugin-promise: curated subset. NOTE: the async promise-executor guard
+      // is the CORE rule 'no-async-promise-executor' (explicitly set below), not a
+      // plugin rule — eslint-plugin-promise has no such rule. An async executor can
+      // never be settled by a throw (the error is swallowed into the executor's
+      // discarded promise), so callers waiting on the promise hang forever — every
+      // former instance of that pattern has been converted to async functions
+      // instead, and the rule now guards against reintroducing it. The
+      // callback-related rules are disabled because the chrome.* APIs this extension
+      // wraps are callback-based and unavoidably mix callbacks with promises;
+      // prefer-await-to-* would flag the same legacy call styles throughout the
+      // codebase and stay a TODO for a dedicated modernisation pass.
+      'no-async-promise-executor'             : ['error'],
+      'promise/no-nesting'                     : ['off'],
+      'promise/no-promise-in-callback'         : ['off'],
+      'promise/prefer-await-to-then'           : ['off'],
+      'promise/prefer-await-to-callbacks'      : ['off'],
+      'promise/no-return-in-finally'           : ['error'],
+      'promise/valid-params'                   : ['warn'],
 
     }
   },
