@@ -69,27 +69,33 @@ export const gsFavicon = (() => {
 
     const faviconPromises = [];
     for (let i = 0; i < defaultIconUrls.length; i += 1) {
-      const iconUrl = defaultIconUrls[i];
-      faviconPromises.push(
-        /** @type {Promise<void>} */
-        (new Promise(async (resolve) => {
-          const faviconMeta = await addDefaultFaviconMeta(iconUrl);
-          if (faviconMeta) {
-            // gsUtils.log( 'gsFavicon', 'Successfully built default faviconMeta', iconUrl, faviconMeta );
-          }
-          else {
-            gsUtils.warning('gsFavicon', 'Failed to build faviconMeta', iconUrl);
-          }
-          // Set the first url as the default favicon
-          if (i === 0) {
-            _defaultChromeFaviconMeta = faviconMeta ?? FALLBACK_CHROME_FAVICON_META;
-          }
-          resolve();
-        }))
-      );
+      faviconPromises.push(resolveDefaultFaviconMeta(defaultIconUrls[i], i));
     }
     await Promise.all(faviconPromises);
     await gsStorage.saveStorage('session', gsStorage.DEFAULT_FAVICON_FINGERPRINTS, _defaultFaviconFingerprintById);
+  }
+
+  // Builds one default favicon meta, recording it as the chrome default when it
+  // belongs to the first url in the list. Extracted from the former per-url
+  // new Promise(async ...) executor so a failure here rejects (and surfaces via
+  // the Promise.all in getFaviconDefaults) instead of never settling.
+  /**
+   * @param   { string }  url
+   * @param   { number }  index
+   * @returns { Promise<void> }
+   */
+  async function resolveDefaultFaviconMeta(url, index) {
+    const faviconMeta = await addDefaultFaviconMeta(url);
+    if (faviconMeta) {
+      // gsUtils.log( 'gsFavicon', 'Successfully built default faviconMeta', url, faviconMeta );
+    }
+    else {
+      gsUtils.warning('gsFavicon', 'Failed to build faviconMeta', url);
+    }
+    // Set the first url as the default favicon
+    if (index === 0) {
+      _defaultChromeFaviconMeta = faviconMeta ?? FALLBACK_CHROME_FAVICON_META;
+    }
   }
 
   /**

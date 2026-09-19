@@ -563,47 +563,40 @@ export const gsUtils = {
     return suspendInPlaceOfDiscard && !discardInPlaceOfSuspend;
   },
 
-  removeTabsByUrlAsPromised(url) {
-    return new Promise(async (resolve) => {
-      const tabs = await gsChrome.tabsQuery({ url });
-      const tabIds = tabs.map((tab) => tab.id).filter((item) => item !== undefined);
-      chrome.tabs.remove(tabIds, () => {
-        resolve(null);
-      });
-    });
+  removeTabsByUrlAsPromised: async (url) => {
+    const tabs = await gsChrome.tabsQuery({ url });
+    const tabIds = tabs.map((tab) => tab.id).filter((item) => item !== undefined);
+    await gsChrome.tabsRemove(tabIds);
+    return null;
   },
 
-  createTabAndWaitForFinishLoading(url, maxWaitTimeInMs) {
-    return new Promise(async (resolve) => {
-      let tab = await gsChrome.tabsCreate(url);
-      const retryUntil = Date.now() + (maxWaitTimeInMs || 1000);
-      let loaded = false;
-      while (tab && !loaded && Date.now() < retryUntil) {
-        loaded = tab.status === 'complete';
-        if (!loaded) {
-          await gsUtils.setTimeout(200);
-          tab = await gsChrome.tabsGet(tab.id);
-        }
+  createTabAndWaitForFinishLoading: async (url, maxWaitTimeInMs) => {
+    let tab = await gsChrome.tabsCreate(url);
+    const retryUntil = Date.now() + (maxWaitTimeInMs || 1000);
+    let loaded = false;
+    while (tab && !loaded && Date.now() < retryUntil) {
+      loaded = tab.status === 'complete';
+      if (!loaded) {
+        await gsUtils.setTimeout(200);
+        tab = await gsChrome.tabsGet(tab.id);
       }
-      resolve(tab);
-    });
+    }
+    return tab;
   },
 
-  createWindowAndWaitForFinishLoading(createData, maxWaitTimeInMs) {
-    return new Promise(async (resolve) => {
-      let window = await gsChrome.windowsCreate(createData);
-      maxWaitTimeInMs = maxWaitTimeInMs || 1000;
-      const retryUntil = Date.now() + maxWaitTimeInMs;
-      let loaded = false;
-      while (!loaded && Date.now() < retryUntil) {
-        window = await gsChrome.windowsGet(window.id);
-        loaded = window.tabs.length > 0 && window.tabs[0].status === 'complete';
-        if (!loaded) {
-          await gsUtils.setTimeout(200);
-        }
+  createWindowAndWaitForFinishLoading: async (createData, maxWaitTimeInMs) => {
+    let window = await gsChrome.windowsCreate(createData);
+    maxWaitTimeInMs = maxWaitTimeInMs || 1000;
+    const retryUntil = Date.now() + maxWaitTimeInMs;
+    let loaded = false;
+    while (!loaded && Date.now() < retryUntil) {
+      window = await gsChrome.windowsGet(window.id);
+      loaded = window.tabs.length > 0 && window.tabs[0].status === 'complete';
+      if (!loaded) {
+        await gsUtils.setTimeout(200);
       }
-      resolve(window);
-    });
+    }
+    return window;
   },
 
   checkWhiteList: async (url) => {
