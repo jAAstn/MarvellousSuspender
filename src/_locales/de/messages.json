@@ -569,6 +569,21 @@
   "html_options_always_suspend_tooltip_line2b": {
     "message": "(einfacher Textabgleich an beliebiger Stelle der URL oder /regex/ zwischen Schrägstrichen)."
   },
+  "html_options_always_suspend_custom_times_title": {
+    "message": "Eigene Auto-Suspend-Zeiten (eine Regel pro Zeile, MUSTER : MINUTEN):"
+  },
+  "html_options_always_suspend_custom_times_tooltip_line1a": {
+    "message": "Überschreibt das globale Timeout für passende URLs. Format: MUSTER : MINUTEN"
+  },
+  "html_options_always_suspend_custom_times_tooltip_line1b": {
+    "message": "(0 = diesen Tab nie aussetzen). Zum Beispiel:"
+  },
+  "html_options_always_suspend_custom_times_tooltip_line2a": {
+    "message": "Muster: einfacher Text (irgendwo in der URL), * als Platzhalter oder /regex/ zwischen Schrägstrichen."
+  },
+  "html_options_always_suspend_custom_times_tooltip_line2b": {
+    "message": "Die erste passende Zeile gewinnt. Zeilen, die mit # beginnen, sind Kommentare."
+  },
   "html_options_whitelist_tooltip_line1": {
     "message": "Füge die URL jeder Seite, die du zulassen möchtest, in eine eigene Zeile ein. Zum Beispiel:"
   },

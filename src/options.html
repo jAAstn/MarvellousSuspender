@@ -324,6 +324,22 @@ __MSG_html_options_always_suspend_tooltip_line2b__">
         <span aria-hidden="true"> · </span>
         <a id="forceSuspendAlwaysListBtn" href="#alwaysSuspendLbl" data-i18n="__MSG_html_options_always_suspend_force__"></a>
       </div>
+      <!-- [FORK] Custom auto-suspend times (see src/js/gsCustomSuspend.js). Deliberately NOT
+           .autoSuspendOption: a rule must stay reachable while the global timeout is "Never". -->
+      <div class="formRow">
+        <label id="customSuspendTimesLbl" for="customSuspendTimes" data-i18n="__MSG_html_options_always_suspend_custom_times_title__"></label>
+        <span data-i18n-tooltip="__MSG_html_options_always_suspend_custom_times_tooltip_line1a__
+__MSG_html_options_always_suspend_custom_times_tooltip_line1b__
+&nbsp;&nbsp;&nbsp;&nbsp;youtube.com : 120
+&nbsp;&nbsp;&nbsp;&nbsp;https://*id=* : 5
+&nbsp;&nbsp;&nbsp;&nbsp;/^https?:\/\/mail\.google\.com/ : 0
+
+__MSG_html_options_always_suspend_custom_times_tooltip_line2a__
+__MSG_html_options_always_suspend_custom_times_tooltip_line2b__">
+          <svg class="tooltipIcon icon" aria-hidden="true" focusable="false"><use href="img/icons.svg#circle-help"></use></svg>
+        </span>
+        <textarea id="customSuspendTimes" class="option" rows="5" cols="50" spellcheck="false"></textarea>
+      </div>
       <div class="formRow autoSuspendOption">
         <label id="neverSuspendGroupsLbl" data-i18n="__MSG_html_options_never_suspend_groups_title__"></label>
         <span data-i18n-tooltip="__MSG_html_options_never_suspend_groups_tooltip_line1__

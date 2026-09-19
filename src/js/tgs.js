@@ -8,6 +8,7 @@ import  { gsTabSuspendManager }   from './gsTabSuspendManager.js';
 import  { gsTabCheckManager }     from './gsTabCheckManager.js';
 import  { gsTabDiscardManager }   from './gsTabDiscardManager.js';
 import  { gsUtils }               from './gsUtils.js';
+import  { gsCustomSuspend }       from './gsCustomSuspend.js'; // [FORK]
 
 export const tgs = (function() {
 
@@ -867,6 +868,8 @@ export const tgs = (function() {
         suspendTime = suspendTimeOnBattery;
       }
     }
+    // [FORK] per-URL custom timeout (Options → "Custom auto-suspend times") overrides the global one
+    suspendTime = (await gsCustomSuspend.resolveSuspendTime(tab.url, suspendTime)).minutes;
     if (
       (await gsUtils.isProtectedActiveTab(tab)) ||
       isNaN(suspendTime) ||
@@ -1828,7 +1831,8 @@ export const tgs = (function() {
         effectiveSuspendTime = suspendTimeOnBattery;
       }
     }
-    if (effectiveSuspendTime === '0') {
+    // [FORK] a custom rule can re-enable (or, with 0, disable) suspension for this URL
+    if ((await gsCustomSuspend.resolveSuspendTime(tab.url, effectiveSuspendTime)).minutes === 0) {
       callback(gsUtils.STATUS_NEVER);
       return;
     }

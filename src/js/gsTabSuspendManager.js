@@ -8,6 +8,7 @@ import  { gsTabDiscardManager }   from './gsTabDiscardManager.js';
 import  { gsTabQueue }            from './gsTabQueue.js';
 import  { gsUtils }               from './gsUtils.js';
 import  { tgs }                   from './tgs.js';
+import  { gsCustomSuspend }       from './gsCustomSuspend.js'; // [FORK]
 
 export const gsTabSuspendManager = (function() {
 
@@ -340,7 +341,8 @@ export const gsTabSuspendManager = (function() {
           effectiveSuspendTime = suspendTimeOnBattery;
         }
       }
-      if (effectiveSuspendTime === '0') {
+      // [FORK] a custom per-URL rule can override a global "Never" (or force never with 0)
+      if ((await gsCustomSuspend.resolveSuspendTime(tab.url, effectiveSuspendTime)).minutes === 0) {
         return false;
       }
     }

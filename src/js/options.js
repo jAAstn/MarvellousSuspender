@@ -40,6 +40,7 @@ import  { tgs }                   from './tgs.js';
     language: gsStorage.LANGUAGE,
     whitelist: gsStorage.WHITELIST,
     alwaysSuspendList: gsStorage.ALWAYS_SUSPEND_LIST,
+    customSuspendTimes: gsStorage.CUSTOM_SUSPEND_TIMES, // [FORK] intentionally not run through cleanupWhitelist (order = priority)
     newsFeedEnabled: gsStorage.NEWS_FEED_ENABLED,
   };
 

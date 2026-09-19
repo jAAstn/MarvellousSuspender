@@ -569,6 +569,21 @@
   "html_options_always_suspend_tooltip_line2b": {
     "message": "match anywhere in the URL, or /regex/ between slashes)."
   },
+  "html_options_always_suspend_custom_times_title": {
+    "message": "Custom auto-suspend times (one rule per line, PATTERN : MINUTES):"
+  },
+  "html_options_always_suspend_custom_times_tooltip_line1a": {
+    "message": "Override the global timeout for matching URLs. Format: PATTERN : MINUTES"
+  },
+  "html_options_always_suspend_custom_times_tooltip_line1b": {
+    "message": "(0 = never suspend this tab). For example:"
+  },
+  "html_options_always_suspend_custom_times_tooltip_line2a": {
+    "message": "Patterns: plain text (anywhere in the URL), * wildcard, or /regex/ between slashes."
+  },
+  "html_options_always_suspend_custom_times_tooltip_line2b": {
+    "message": "The first matching line wins. Lines starting with # are comments."
+  },
   "html_options_whitelist_tooltip_line1": {
     "message": "Add the URL of each page you want to allow on a new line. For example:"
   },
