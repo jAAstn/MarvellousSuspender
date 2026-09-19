@@ -8,10 +8,14 @@ import  { tgs }                   from './tgs.js';
 import  { gsTabSuspendManager }   from './gsTabSuspendManager.js';
 import  { gsTabCheckManager }     from './gsTabCheckManager.js';
 import  { gsSession }             from './gsSession.js';
+import  { gsCustomSuspend }       from './gsCustomSuspend.js'; // [FORK]
 
 (() => {
 
   const PACING  = 100;
+  // [FORK] set once per scan(); true while TMS itself discards suspended tabs (memory-saving
+  // option) or Chrome >= 150 has the Tab Groups bug fixed natively, see gsCustomSuspend.js
+  let _ignoreDiscardedGrouped = false;
 
   // Both the current and legacy-mascot extension-favicon URLs (see gsMascot). A suspended
   // tab showing either one has the TMS icon, not the real site favicon — true even for a
@@ -340,7 +344,7 @@ import  { gsSession }             from './gsSession.js';
 
       // Tab Groups bug detection (Chrome/Edge and Brave paths).
       if (tab.groupId && tab.groupId > 0) {
-        if (tab.discarded && gsUtils.isSuspendedUrl(tab.url ?? '')) {
+        if (!_ignoreDiscardedGrouped && tab.discarded && gsUtils.isSuspendedUrl(tab.url ?? '')) { // [FORK]
           tabTypes.tabGroupsDiscarded.push(tab);
         } else if (tab.url === 'chrome://newtab/') {
           tabTypes.tabGroupsNewtab.push(tab);
@@ -379,6 +383,7 @@ import  { gsSession }             from './gsSession.js';
 
     const tabs    = await gsChrome.tabsQuery();
     // log(tabs.length, 'tabs');
+    _ignoreDiscardedGrouped = await gsCustomSuspend.shouldIgnoreDiscardedGroupedTabs(); // [FORK]
 
     let   count     = 0;
     for (const tab of tabs) {

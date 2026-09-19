@@ -13,6 +13,7 @@
 //   2. Favicon-Durchreichung       — data:-Favicons überleben den Suspend
 //   3. History-Cleanup             — suspended.html-Platzhalter aus dem Verlauf
 //   4. ZeroRAM-Migration           — Query-String-Format → TMS-Hash-Format
+//   5. Tab-Health-Fix              — discardete Gruppen-Tabs sind kein „Tab Groups bug“
 // ─────────────────────────────────────────────────────────────────────────────
 import  { gsStorage }             from './gsStorage.js';
 import  { gsUtils }               from './gsUtils.js';
@@ -305,6 +306,29 @@ export const gsCustomSuspend = (() => {
     return gsUtils.generateSuspendedUrl(originalUrl, title, '0', favicon);
   }
 
+  // ── 5. Tab Health: False-Positive „Tab Groups bug“ ────────────────────────
+
+  // crbug.com/522338670 (gruppierte suspendierte Tabs werden nach Neustart zu
+  // chrome://newtab) ist laut Upstream-CHANGELOG ab Chrome 150 nativ gefixt.
+  const CHROME_TAB_GROUPS_BUG_FIXED_VERSION = 150;
+
+  /**
+   * health.js wertet jeden Tab „gruppiert + suspendiert + discarded“ als Tab-Groups-Bug.
+   * Mit aktivierter Option „built-in memory-saving when suspending“ (DISCARD_AFTER_SUSPEND)
+   * discarded TMS diese Tabs aber absichtlich → jeder gesunde Gruppen-Tab wäre „broken“,
+   * und „Repair“ (Tab schließen + neu anlegen) liefe ins Leere. Ebenso ist der Pfad ab
+   * Chrome 150 gegenstandslos. Der Brave-Pfad (chrome://newtab) bleibt unberührt.
+   *
+   * @returns {Promise<boolean>}  true → discarded Gruppen-Tabs NICHT als broken zählen
+   */
+  async function shouldIgnoreDiscardedGroupedTabs() {
+    if (await gsStorage.getOption(gsStorage.DISCARD_AFTER_SUSPEND)) {
+      return true;
+    }
+    // getChromeVersion() liefert number | false; `false >= 150` ist false.
+    return gsUtils.getChromeVersion() >= CHROME_TAB_GROUPS_BUG_FIXED_VERSION;
+  }
+
   return {
     // 1
     parseCustomSuspendTimes,
@@ -323,5 +347,7 @@ export const gsCustomSuspend = (() => {
     ZERORAM_EXTENSION_ID,
     ZERORAM_EXTENSION_NAME,
     convertForeignSuspendedUrl,
+    // 5
+    shouldIgnoreDiscardedGroupedTabs,
   };
 })();
