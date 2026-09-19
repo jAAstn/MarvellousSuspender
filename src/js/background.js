@@ -371,58 +371,77 @@ import  { tgs }                   from './tgs.js';
     return true;
   }
 
-  async function externalMessageRequestListener(request, sender, sendResponse) {
+  function externalMessageRequestListener(request, sender, sendResponse) {
     gsUtils.log('background', 'externalMessageRequestListener', request, sender);
 
-    if (!request.action || !['suspend', 'unsuspend'].includes(request.action)) {
-      sendResponse('Error: unknown request.action:', request.action);
-      return;
-    }
+    // Chrome only keeps the message channel open if the listener returns `true`
+    // synchronously; an async listener's returned promise is ignored. All async work
+    // therefore happens in this detached IIFE (same pattern as messageRequestListener
+    // above) — otherwise every sendResponse() after an await (tabsGet, unsuspendTab,
+    // ...) would fire after the channel had already closed and the external caller
+    // would never see a reply.
+    (async () => {
+      try {
+        if (!request.action || !['suspend', 'unsuspend'].includes(request.action)) {
+          sendResponse(`Error: unknown request.action: ${request.action}`);
+          return;
+        }
 
-    let tab;
-    if (request.tabId) {
-      if (typeof request.tabId !== 'number') {
-        sendResponse('Error: tabId must be an int');
-        return;
+        let tab;
+        if (request.tabId) {
+          if (typeof request.tabId !== 'number') {
+            sendResponse('Error: tabId must be an int');
+            return;
+          }
+          tab = await gsChrome.tabsGet(request.tabId);
+          if (!tab) {
+            sendResponse(`Error: no tab found with id: ${request.tabId}`);
+            return;
+          }
+        }
+        else {
+          tab = await new Promise((r) => {
+            tgs.getCurrentlyActiveTab(r);
+          });
+        }
+
+        if (!tab) {
+          sendResponse('Error: failed to find a target tab');
+          return;
+        }
+
+        if (request.action === 'suspend') {
+          if (gsUtils.isSuspendedTab(tab, true)) {
+            sendResponse('Error: tab is already suspended');
+            return;
+          }
+
+          gsTabSuspendManager.queueTabForSuspension(tab, 1);
+          sendResponse();
+          return;
+        }
+
+        if (request.action === 'unsuspend') {
+          if (!gsUtils.isSuspendedTab(tab)) {
+            sendResponse('Error: tab is not suspended');
+            return;
+          }
+
+          await tgs.unsuspendTab(tab);
+          sendResponse();
+          return;
+        }
+        sendResponse();
       }
-      tab = await gsChrome.tabsGet(request.tabId);
-      if (!tab) {
-        sendResponse('Error: no tab found with id:', request.tabId);
-        return;
+      catch (error) {
+        // Without this, an awaited call throwing (tabsGet, unsuspendTab, ...) would
+        // reject this detached IIFE with nothing ever catching it — sendResponse() would
+        // never run, and since the listener already returned `true` to keep the channel
+        // open, the external caller is left hanging until the port tears down.
+        gsUtils.error(`externalMessageRequestListener error for action ${request.action}: `, error);
+        sendResponse();
       }
-    }
-    else {
-      tab = await new Promise((r) => {
-        tgs.getCurrentlyActiveTab(r);
-      });
-    }
-
-    if (!tab) {
-      sendResponse('Error: failed to find a target tab');
-      return;
-    }
-
-    if (request.action === 'suspend') {
-      if (gsUtils.isSuspendedTab(tab, true)) {
-        sendResponse('Error: tab is already suspended');
-        return;
-      }
-
-      gsTabSuspendManager.queueTabForSuspension(tab, 1);
-      sendResponse();
-      return;
-    }
-
-    if (request.action === 'unsuspend') {
-      if (!gsUtils.isSuspendedTab(tab)) {
-        sendResponse('Error: tab is not suspended');
-        return;
-      }
-
-      await tgs.unsuspendTab(tab);
-      sendResponse();
-      return;
-    }
+    })();
     return true;
   }
 
