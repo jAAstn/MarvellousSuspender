@@ -334,7 +334,12 @@ import  { tgs }                   from './tgs.js';
           element.checked = await chrome.permissions.request(gsPrecapture.ALL_URLS).catch(() => false);
         }
         else {
-          await gsPrecapture.clear();
+          // Persist the setting as off directly, rather than leaving it to the normal
+          // end-of-handler save below: gsPrecapture.js's own chrome.storage.onChanged listener
+          // is what actually clears the store and revokes the permission (reaching every
+          // context and every trigger, not just this click), and it reacts to this write.
+          await gsStorage.setOptionAndSync(pref, false);
+          showSavedFeedback(element);
         }
       }
       else if (pref === gsStorage.SUSPEND_TIME) {

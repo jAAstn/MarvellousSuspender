@@ -51,6 +51,7 @@ export const gsTabSuspendManager = (function() {
   function _clearPendingPreview(tabId, executionProps) {
     const pending = _pendingPreviewExecutionPropsByTabId.get(tabId);
     if (pending && pending.executionProps === executionProps) {
+      clearTimeout(pending.renderTimeoutTimer);
       _pendingPreviewExecutionPropsByTabId.delete(tabId);
     }
   }
@@ -235,9 +236,29 @@ export const gsTabSuspendManager = (function() {
       }
       if (previewUrl) {
         await gsIndexedDb.addPreviewImage(tab.url, previewUrl);
+        // This await too: an unsuspend-all racing it removes the queue entry checked above
+        // but leaves execution here able to fall through to executeTabSuspension() regardless.
+        const stillQueuedAfterSave = getQueuedTabDetails(tab);
+        if (!stillQueuedAfterSave || stillQueuedAfterSave.executionProps !== executionProps) {
+          gsUtils.log(tab.id, QUEUE_ID, 'Suspension cancelled while saving native preview. Ignoring.',);
+          return;
+        }
       }
       if (previewUrl || screenCaptureMethod === 'native') {
-        if (!await checkTabEligibilityForSuspension(tab, executionProps.forceLevel)) {
+        // Forced 'native' mode treats a null previewUrl as acceptable (no preview, still
+        // suspend), which also swallows the specific case of captureVisibleTab() rejecting a
+        // stale-page capture on navigation -- re-check the tab is still on the page suspendedUrl
+        // was generated for, not just that it's still active/eligible, before using it.
+        const liveTab = await gsChrome.tabsGet(tab.id);
+        if (!liveTab || liveTab.url !== executionProps.precaptureUrl) {
+          gsUtils.log(tab.id, QUEUE_ID, 'Tab navigated while awaiting native capture. Ignoring.',);
+          resolve(false);
+          return;
+        }
+        // liveTab, not tab: the queued snapshot's audible/pinned/groupId fields are as stale
+        // as its url was -- checkTabEligibilityForSuspension() needs the same freshly-fetched
+        // tab the url check above just confirmed is still the right page.
+        if (!await checkTabEligibilityForSuspension(liveTab, executionProps.forceLevel)) {
           // Settle the job rather than just returning: an unsettled promise leaves this job's
           // queue timeout armed, and handleSuspensionException() would later force-suspend the
           // tab anyway despite this check having just rejected it.
@@ -245,7 +266,16 @@ export const gsTabSuspendManager = (function() {
           resolve(false);
           return;
         }
-        const success = await executeTabSuspension(tab, suspendedUrl);
+        // One more check immediately before the actual suspension: tabsGet() and the
+        // eligibility check above both await too, and an unsuspend-all racing either of them
+        // still passes eligibility for e.g. a force-level-1 job even though the job was removed.
+        const stillQueuedBeforeSuspend = getQueuedTabDetails(tab);
+        if (!stillQueuedBeforeSuspend || stillQueuedBeforeSuspend.executionProps !== executionProps) {
+          gsUtils.log(tab.id, QUEUE_ID, 'Suspension cancelled just before native suspension. Ignoring.',);
+          return;
+        }
+        const isStillCurrent = () => getQueuedTabDetails(tab)?.executionProps === executionProps;
+        const success = await executeTabSuspension(tab, suspendedUrl, isStillCurrent);
         resolve(success);
         return;
       }
@@ -271,6 +301,7 @@ export const gsTabSuspendManager = (function() {
       gsUtils.log(tab.id, QUEUE_ID, 'Preview response is for a superseded suspension job. Ignoring.',);
       return;
     }
+    clearTimeout(pending.renderTimeoutTimer);
     _pendingPreviewExecutionPropsByTabId.delete(tab.id);
     const expectedExecutionProps = pending.executionProps;
 
@@ -315,9 +346,18 @@ export const gsTabSuspendManager = (function() {
           gsUtils.log(tab.id, QUEUE_ID, 'Suspension cancelled while awaiting fallback native capture. Ignoring.',);
           return;
         }
+        // Same stale-page hazard as the native-first path: a navigation during this capture
+        // would otherwise save the new page's screenshot and suspend it under the old one's url.
+        const liveTab = await gsChrome.tabsGet(tab.id);
+        if (!liveTab || liveTab.url !== queuedTabDetails.executionProps.precaptureUrl) {
+          gsUtils.log(tab.id, QUEUE_ID, 'Tab navigated while awaiting fallback native capture. Ignoring.',);
+          queuedTabDetails.executionProps.resolveFn(false);
+          return;
+        }
         // Eligibility was already checked once above, before this second await -- it can
-        // just as easily have changed again during the fallback capture itself.
-        if (!await checkTabEligibilityForSuspension(tab, suspensionForceLevel)) {
+        // just as easily have changed again during the fallback capture itself. liveTab, not
+        // tab: its snapshot is as stale as its url was.
+        if (!await checkTabEligibilityForSuspension(liveTab, suspensionForceLevel)) {
           gsUtils.log(tab.id, QUEUE_ID, 'Tab is no longer eligible for suspension. Removing tab from suspensionQueue.',);
           queuedTabDetails.executionProps.resolveFn(false);
           return;
@@ -326,11 +366,47 @@ export const gsTabSuspendManager = (function() {
     }
     if (previewUrl) {
       await gsIndexedDb.addPreviewImage(tab.url, previewUrl);
+      // This save awaits too: an unsuspend-all racing it can still remove the queue entry
+      // checked above and leave execution here able to fall through regardless.
+      const stillQueuedAfterSave = getQueuedTabDetails(tab);
+      if (!stillQueuedAfterSave || stillQueuedAfterSave.executionProps !== expectedExecutionProps) {
+        gsUtils.log(tab.id, QUEUE_ID, 'Suspension cancelled while saving preview. Ignoring.',);
+        return;
+      }
+    }
+    // One comprehensive check right before the actual suspension, unconditionally, rather than
+    // another narrow one scoped to whichever branch was just taken: identity (an unsuspend-all
+    // racing any of the awaits above), url (a navigation during the renderer's own round trip,
+    // which the checks above never covered at all for the renderer-succeeded case), and
+    // eligibility (the tab becoming audible/pinned/grouped during any of those same awaits).
+    const stillQueuedBeforeSuspend = getQueuedTabDetails(tab);
+    if (!stillQueuedBeforeSuspend || stillQueuedBeforeSuspend.executionProps !== expectedExecutionProps) {
+      gsUtils.log(tab.id, QUEUE_ID, 'Suspension cancelled just before suspension. Ignoring.',);
+      return;
+    }
+    const liveTabBeforeSuspend = await gsChrome.tabsGet(tab.id);
+    if (!liveTabBeforeSuspend || liveTabBeforeSuspend.url !== queuedTabDetails.executionProps.precaptureUrl) {
+      gsUtils.log(tab.id, QUEUE_ID, 'Tab navigated just before suspension. Ignoring.',);
+      queuedTabDetails.executionProps.resolveFn(false);
+      return;
+    }
+    if (!await checkTabEligibilityForSuspension(liveTabBeforeSuspend, suspensionForceLevel)) {
+      gsUtils.log(tab.id, QUEUE_ID, 'Tab is no longer eligible for suspension. Removing tab from suspensionQueue.',);
+      queuedTabDetails.executionProps.resolveFn(false);
+      return;
+    }
+    // checkTabEligibilityForSuspension() awaits too -- the identity check above it doesn't
+    // cover a cancellation landing inside that specific await.
+    const stillQueuedAfterEligibility = getQueuedTabDetails(tab);
+    if (!stillQueuedAfterEligibility || stillQueuedAfterEligibility.executionProps !== expectedExecutionProps) {
+      gsUtils.log(tab.id, QUEUE_ID, 'Suspension cancelled during the eligibility check. Ignoring.',);
+      return;
     }
 
     const success = await executeTabSuspension(
       tab,
       queuedTabDetails.executionProps.suspendedUrl,
+      () => getQueuedTabDetails(tab)?.executionProps === expectedExecutionProps,
     );
     queuedTabDetails.executionProps.resolveFn(success);
   }
@@ -370,10 +446,16 @@ export const gsTabSuspendManager = (function() {
     }
   }
 
-  async function executeTabSuspension(tab, suspendedUrl) {
-    // Remove any existing queued tab checks (this can happen if we try to suspend
-    // a tab immediately after it gains focus)
-    gsTabCheckManager.unqueueTabCheck(tab);
+// isStillCurrent: an optional, cheap (synchronous, no await) cancellation check run
+// immediately before the actual tabsUpdate() call -- this function's own awaits (settings
+// read, session-state write) are themselves an unsuspend-all race window none of the
+// caller-side checks before calling this can cover, since they all run before it, not after
+// its internal awaits. Callers that don't pass one (e.g. the force-suspend-on-timeout path,
+// which intentionally suspends regardless) get the previous unconditional behaviour.
+async function executeTabSuspension(tab, suspendedUrl, isStillCurrent = () => true) {
+  // Remove any existing queued tab checks (this can happen if we try to suspend
+  // a tab immediately after it gains focus)
+  gsTabCheckManager.unqueueTabCheck(tab);
 
     // If we want tabs to be discarded instead of suspending them
     const discardInPlaceOfSuspend = await gsStorage.getOption(gsStorage.DISCARD_IN_PLACE_OF_SUSPEND);
@@ -395,6 +477,10 @@ export const gsTabSuspendManager = (function() {
 
     gsUtils.log(tab.id, 'Suspending tab');
     await tgs.setTabStatePropForTabId(tab.id, tgs.STATE_INITIALISE_SUSPENDED_TAB, true);
+    if (!isStillCurrent()) {
+      gsUtils.log(tab.id, 'Suspension cancelled just before tabsUpdate. Ignoring.');
+      return false;
+    }
     const updatedTab = await gsChrome.tabsUpdate(tab.id, { url: suspendedUrl });
     gsCustomSuspend.removeTabHistoryForSuspendedTab(suspendedUrl); // [FORK] keep placeholders out of history
     return updatedTab !== null;
@@ -563,9 +649,15 @@ export const gsTabSuspendManager = (function() {
     // its main thread is busy rendering, so an in-page deadline fires late or not at all.
     // If the page answers first this call is dropped as stale by the token check.
     const renderTimeout = forceScreenCapture ? PREVIEW_RENDER_TIMEOUT_HIGH_QUALITY : PREVIEW_RENDER_TIMEOUT;
-    setTimeout(() => {
+    const renderTimeoutTimer = setTimeout(() => {
       handlePreviewImageResponse(tab, null, `Preview render timed out after ${renderTimeout}ms`, previewToken); // async. unhandled promise.
     }, renderTimeout);
+    // The map entry already exists -- performSuspension() sets it just before calling this --
+    // so a normal response can clearTimeout this instead of it always running to term.
+    const pending = _pendingPreviewExecutionPropsByTabId.get(tab.id);
+    if (pending && pending.token === previewToken) {
+      pending.renderTimeoutTimer = renderTimeoutTimer;
+    }
 
     gsMessages.executeScriptOnTab(tab.id, screenCaptureLib, error => {
       if (error) {
