@@ -2003,37 +2003,7 @@ export const tgs = (function() {
     }
   }
 
-  // [FORK] The 'tab' context type is only understood by Chromium 150+ (see PSA:
-  // https://groups.google.com/a/chromium.org/g/chromium-extensions/c/RReE8dtY4Ok/m/hOQaYDNYAwAJ).
-  // Registers a throwaway probe item to detect support, so older builds
-  // (e.g. Brave on Chromium 142) can skip the tab strip section instead of
-  // rejecting every single item and aborting the whole menu build.
-  function isTabStripContextSupported() {
-    return new Promise((resolve) => {
-      try {
-        chrome.contextMenus.create(
-          {
-            id: 'tab_context_support_probe',
-            title: ' ',
-            visible: false,
-            contexts: ['tab'],
-          },
-          () => {
-            const lastError = chrome.runtime.lastError;
-            chrome.contextMenus.remove('tab_context_support_probe', () => void chrome.runtime.lastError);
-            if (lastError) {
-              gsUtils.log('tgs', 'isTabStripContextSupported', lastError.message);
-            }
-            resolve(!lastError);
-          }
-        );
-      }
-      catch (e) {
-        gsUtils.warning('tgs', 'isTabStripContextSupported', e);
-        resolve(false);
-      }
-    });
-  }
+
 
   //HANDLERS FOR RIGHT-CLICK CONTEXT MENU
   // Serializes every buildContextMenu() call — from background.js's rebuildContextMenu()
@@ -2254,7 +2224,6 @@ export const tgs = (function() {
       });
 
       // [FORK] Tab strip context menu items (right-click on tab in tab bar)
-      if (await isTabStripContextSupported()) {
         chrome.contextMenus.create({
           id: 'tab_toggle_suspend',
           title: gsUtils.getMessage('js_context_toggle_suspend_state'),
@@ -2339,7 +2308,7 @@ export const tgs = (function() {
             contexts: ['tab'],
           }, resolve);
         });
-      }
+      
 
       // enable the page item above if the tab in front of the user is in a named group (#133)
       // Debounced/fire-and-forget (own internal setTimeout), so it doesn't need to be
