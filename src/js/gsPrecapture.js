@@ -58,9 +58,24 @@ export const gsPrecapture = (function() {
   }
 
   async function doCaptureVisibleTab(tab) {
+    // Not tab.url/tab.windowId: the suspension flow mutates its own in-memory tab.url (e.g. a
+    // YouTube timestamp) without ever navigating the real tab, and the tab can also be dragged
+    // into another window entirely while this call awaits -- either way the original snapshot
+    // is unreliable. This instead pins both as read on the first successful check (url so a
+    // real navigation is still caught) and never updates windowId again after that: the actual
+    // chrome.tabs.captureVisibleTab() call below always targets this pinned window, so a later
+    // check must reject a window change rather than silently follow the tab to its new one,
+    // which would otherwise validate a capture that was actually taken of the wrong window.
+    let startUrl, pinnedWindowId;
     const isCapturable = async () => {
       const _tab = await gsChrome.tabsGet(tab.id);
-      return !!_tab && _tab.active && !gsUtils.isSuspendedTab(_tab);
+      if (!_tab || !_tab.active || gsUtils.isSuspendedTab(_tab)) return false;
+      if (startUrl === undefined) {
+        startUrl = _tab.url;
+        pinnedWindowId = _tab.windowId;
+        return true;
+      }
+      return _tab.url === startUrl && _tab.windowId === pinnedWindowId;
     };
     if (!await isCapturable()) {
       return null;
@@ -82,7 +97,7 @@ export const gsPrecapture = (function() {
     try {
       // captureVisibleTab never settles for a window that isn't painting (occluded, display asleep)
       const dataUrl = await Promise.race([
-        chrome.tabs.captureVisibleTab(tab.windowId, options),
+        chrome.tabs.captureVisibleTab(pinnedWindowId, options),
         new Promise((resolve, reject) => {
           timer = setTimeout(() => reject(new Error('Timed out')), CAPTURE_TIMEOUT);
         }),
@@ -182,19 +197,44 @@ export const gsPrecapture = (function() {
     }
   }
 
-  async function clear() {
+  // Bumps the generation and cancels pending timers in *this context's own* module instance.
+  // Each extension context (background, options page, popup, ...) that imports this file gets
+  // its own separate copy of this whole IIFE's state, so this alone does nothing for the other
+  // contexts -- the chrome.storage.onChanged listener below is what makes every context react,
+  // regardless of which one the setting was actually flipped from.
+  function invalidate() {
     _generation++;
-    // Cancel timers scheduled before the disable click: the generation check alone only
-    // catches a capture already past isEnabled() when this runs, not one whose timer fires
-    // afterwards -- options.js doesn't persist the setting as off until this call returns,
-    // so a freshly-fired timer's own isEnabled() would still read the stale 'true' value.
     for (const timer of _timers.values()) {
       clearTimeout(timer);
     }
     _timers.clear();
+  }
+
+  async function clear() {
+    invalidate();
     const db = await getDb();
     await db.clear(DB_STORE);
   }
+
+  // The background service worker is normally the only context that ever schedules or runs a
+  // capture, but the setting can be turned off from anywhere that reaches this same storage key:
+  // options.js's own separate module instance, a synced change from another device, or a
+  // settings import -- none of which call this file's own clear()/permission-removal directly.
+  // Reacting to the storage write itself, rather than requiring each of those call sites to
+  // remember both cleanup steps, is what actually reaches every context and every trigger.
+  chrome.storage.onChanged.addListener(async (changes, areaName) => {
+    if (areaName !== 'local' || !changes.gsSettings) return;
+    const wasOn = changes.gsSettings.oldValue?.[gsStorage.SCREEN_CAPTURE_PRECAPTURE];
+    const isOn = changes.gsSettings.newValue?.[gsStorage.SCREEN_CAPTURE_PRECAPTURE];
+    if (!wasOn || isOn) return;
+    await clear();
+    // Re-read rather than trusting the isOn captured above: a quick re-enable racing this
+    // whole handler could already have turned it back on and re-requested the permission by
+    // the time clear() resolves, and revoking it now would leave the checkbox checked with
+    // isEnabled() permanently false until the user toggles the setting again.
+    if (await gsStorage.getOption(gsStorage.SCREEN_CAPTURE_PRECAPTURE)) return;
+    await chrome.permissions.remove(ALL_URLS).catch(() => {});
+  });
 
   return {
     ALL_URLS,
