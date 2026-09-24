@@ -360,7 +360,7 @@
     "message": "أبدا"
   },
   "html_options_suspend_seconds": {
-    "message": "ثواني"
+    "message": "الثواني"
   },
   "html_options_suspend_minute": {
     "message": "دقيقة"
@@ -480,7 +480,7 @@
     "message": "غير أنه سيؤدي أيضا إلى تأخير طفيف عند الاختيار"
   },
   "html_options_suspend_discard_after_suspend_tooltip_line2b": {
-    "message": "علامة التبويب المعلقة."
+    "message": "علامة التبويب المعلقة"
   },
   "html_options_suspend_discard_after_suspend_tooltip_line3a": {
     "message": "لمزيد من المعلومات حول تجاهل علامات التبويب، راجع:"
@@ -764,7 +764,7 @@
     "message": "اختصارات لوحة المفاتيح"
   },
   "html_sidebar_support": {
-    "message": "حول عن اضافة"
+    "message": "حول عن الإضافة مارفيلوس سوسبندر"
   },
   "html_sidebar_backup": {
     "message": "النسخ الاحتياطي"
@@ -794,7 +794,7 @@
     "message": "النسخ الاحتياطي والاستعادة"
   },
   "html_success_great_success": {
-    "message": "نجاح رائع!"
+    "message": "نجاح رائع !"
   },
   "html_success_all_tabs_restored": {
     "message": "تم استعادة جميع علامات التبويب الخاصة بك."
@@ -974,7 +974,7 @@
     "message": "احفظ"
   },
   "js_history_window": {
-    "message": "نافذة"
+    "message": "نافذة "
   },
   "js_history_windows": {
     "message": "ويندوز"
@@ -1015,7 +1015,7 @@
     "message": "تم تعليق علامة التبويب بسبب انخفاض ذاكرة النظام"
   },
   "js_options_incognito_warning": {
-    "message": "أنت في وضع التخفي. بعض الميزات لن تكون متاحة."
+    "message": "أنت في وضع التخفي.بعض الميزات لن تكون متاحة."
   },
   "js_options_whitelist_no_matches": {
     "message": "لا توجد علامات تبويب مفتوحة تتطابق مع القائمة المسموح بها الحالية."
@@ -1182,7 +1182,7 @@
     "message": "يطلب TMS أذونات التنزيلات وحساب Google فقط عند تفعيل النسخ الاحتياطي المحلي أو على Google Drive أدناه."
   },
   "html_permissions_info_note_link": {
-    "message": "عرض تفصيل الأذونات الكامل."
+    "message": "عرض تفصيل الأذونات الكامل"
   },
   "js_options_backup_now_error": {
     "message": "يسألك Chrome عن مكان حفظ الملفات، لذا لن تعمل النسخ الاحتياطية التلقائية بصمت. عطّل \"السؤال عن مكان حفظ كل ملف\" في chrome://settings/downloads."

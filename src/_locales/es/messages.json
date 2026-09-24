@@ -444,7 +444,7 @@
     "message": "anula los enlaces que saltan a una sección (#) al cargar."
   },
   "html_options_suspend_automatically_unsuspend": {
-    "message": "Anular suspensión automáticamente de la pestaña cuando sea vista"
+    "message": "Dessuspender automáticamente la pestaña cuando sea vista"
   },
   "html_options_suspend_reload_unsuspend_background": {
     "message": "Recargar también reactiva las pestañas en segundo plano (no solo la pestaña activa)"
@@ -492,7 +492,7 @@
     "message": "Tema"
   },
   "html_options_suspend_theme_light": {
-    "message": "Claro"
+    "message": "Brillante"
   },
   "html_options_suspend_theme_dark": {
     "message": "Oscuro"
@@ -501,10 +501,10 @@
     "message": "Sistema"
   },
   "html_options_suspend_screen_capturing": {
-    "message": "Captura de pantalla"
+    "message": "Pantalla de grabación"
   },
   "html_options_suspend_screen_capturing_disabled": {
-    "message": "Deshabilitada"
+    "message": "Discapacitada"
   },
   "html_options_suspend_screen_capturing_screen_only": {
     "message": "Capturar solo la parte superior de la pantalla"
@@ -656,7 +656,7 @@
     "message": "Normalmente, tu navegador solo descarta pestañas cuando la memoria del sistema es muy baja."
   },
   "html_options_suspend_on_low_memory_tooltip_line4": {
-    "message": "Tenga en cuenta: Esto puede causar que las pestañas se suspendan antes del tiempo que ha"
+    "message": "Tenga en cuenta: Esto puede causar que las pestañas se suspendan antes del tiempo que tiene"
   },
   "html_options_suspend_on_low_memory_tooltip_line5": {
     "message": "especificado en las opciones de suspensión Automática de pestañas."
@@ -1182,7 +1182,7 @@
     "message": "TMS solicita los permisos de Descargas y cuenta de Google solo cuando activas la copia de seguridad local o en Google Drive a continuación."
   },
   "html_permissions_info_note_link": {
-    "message": "Ver el desglose completo de permisos."
+    "message": "Ver el desglose completo de permisos"
   },
   "js_options_backup_now_error": {
     "message": "Chrome está preguntando dónde guardar los archivos, por lo que las copias de seguridad automáticas no funcionarán en silencio. Desactiva \"Preguntar dónde guardar cada archivo\" en chrome://settings/downloads."

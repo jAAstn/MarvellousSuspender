@@ -803,7 +803,7 @@
     "message": "Pro pokročilou správu relací navštivte stránku"
   },
   "html_success_goto_advanced_suffix": {
-    "message": "."
+    "message": "page"
   },
   "html_session_manager": {
     "message": "správa relací"
@@ -851,7 +851,7 @@
     "message": "Důrazně doporučujeme před pokračováním v aktualizaci exportovat kopii své aktuální relace z "
   },
   "html_update_info_nobackup_suffix": {
-    "message": "."
+    "message": " before continuing with the update."
   },
   "html_updated_title": {
     "message": "Aktualizováno"
@@ -872,7 +872,7 @@
     "message": "Pokud jste během aktualizace narazili na problémy, můžete ztracené karty obnovit ze stránky "
   },
   "html_updated_info_line2_suffix": {
-    "message": "."
+    "message": " page."
   },
   "html_updated_patch_message": {
     "message": "Omlouváme se za obtěžování. Bylo potřeba provést drobnou údržbu."
@@ -1182,7 +1182,7 @@
     "message": "TMS si vyžádá oprávnění Stažené soubory a účet Google pouze tehdy, když níže zapnete místní zálohu nebo zálohu na Disku Google."
   },
   "html_permissions_info_note_link": {
-    "message": "Zobrazit úplný přehled oprávnění."
+    "message": "Zobrazit úplný přehled oprávnění"
   },
   "js_options_backup_now_error": {
     "message": "Chrome se ptá, kam ukládat soubory, takže automatické zálohy nebudou fungovat tiše. Vypněte „Zeptat se, kam uložit každý soubor“ v chrome://settings/downloads."

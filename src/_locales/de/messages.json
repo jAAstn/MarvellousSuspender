@@ -270,7 +270,7 @@
     "message": "Versuche die Erweiterung neu zu starten. Falls das Problem weiterhin besteht, frage nach Hilfe auf der"
   },
   "html_broken_line2_github_page": {
-    "message": "GitHub Projektseite"
+    "message": "Github Projektseite"
   },
   "html_broken_line3": {
     "message": "Du kannst verlorene Tabs auf der"
@@ -1182,7 +1182,7 @@
     "message": "TMS fordert die Berechtigungen für Downloads und Google-Konto nur an, wenn du unten die lokale oder Google-Drive-Sicherung aktivierst."
   },
   "html_permissions_info_note_link": {
-    "message": "Vollständige Aufschlüsselung der Berechtigungen ansehen."
+    "message": "Vollständige Aufschlüsselung der Berechtigungen ansehen"
   },
   "js_options_backup_now_error": {
     "message": "Chrome fragt nach, wo Dateien gespeichert werden sollen, wodurch automatische Sicherungen nicht im Hintergrund funktionieren. Deaktiviere „Nachfragen, wo jede Datei gespeichert werden soll“ in chrome://settings/downloads."

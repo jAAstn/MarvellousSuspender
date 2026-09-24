@@ -36,7 +36,7 @@
     "message": "Basculer « ne jamais suspendre » pour le groupe de l'onglet actif"
   },
   "ext_cmd_soft_suspend_active_window_description": {
-    "message": "Suspend tous les autres onglets de la fenêtre active"
+    "message": "Suspendre tous les autres onglets de la fenêtre active"
   },
   "ext_cmd_force_suspend_active_window_description": {
     "message": "Force la suspension de tous les autres onglets dans la fenêtre active"
@@ -510,7 +510,7 @@
     "message": "Capturer le haut de l'écran uniquement"
   },
   "html_options_suspend_screen_capturing_entire_page": {
-    "message": "Capturer la page entière"
+    "message": "Capturer toute la page"
   },
   "html_options_suspend_screen_capturing_tooltip_line1a": {
     "message": "Dans un onglet suspendu, l'extension peut afficher un aperçu de l'image de ce que l'onglet"
@@ -1182,7 +1182,7 @@
     "message": "TMS demande les permissions Téléchargements et compte Google uniquement lorsque vous activez la sauvegarde locale ou Google Drive ci-dessous."
   },
   "html_permissions_info_note_link": {
-    "message": "Voir le détail complet des permissions."
+    "message": "Voir le détail complet des permissions"
   },
   "js_options_backup_now_error": {
     "message": "Chrome demande où enregistrer les fichiers, les sauvegardes automatiques ne fonctionneront donc pas silencieusement. Désactivez « Demander où enregistrer chaque fichier » dans chrome://settings/downloads."
