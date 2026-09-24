@@ -1,7 +1,7 @@
-/** @import * as html2canvas from './html2canvas.min.js' */
 import  { gsChrome }              from './gsChrome.js';
 import  { gsIndexedDb }           from './gsIndexedDb.js';
 import  { gsMessages }            from './gsMessages.js';
+import  { gsPrecapture }          from './gsPrecapture.js';
 import  { gsSession }             from './gsSession.js';
 import  { gsStorage }             from './gsStorage.js';
 import  { gsTabCheckManager }     from './gsTabCheckManager.js';
@@ -14,6 +14,8 @@ export const gsTabSuspendManager = (function() {
 
   const DEFAULT_CONCURRENT_SUSPENSIONS = 3;
   const DEFAULT_SUSPENSION_TIMEOUT = 60 * 1000;
+  const PREVIEW_RENDER_TIMEOUT = 20 * 1000;
+  const PREVIEW_RENDER_TIMEOUT_HIGH_QUALITY = 45 * 1000;
 
   const QUEUE_ID = 'suspensionQueue';
 
@@ -39,7 +41,7 @@ export const gsTabSuspendManager = (function() {
 
   // handlePreviewImageResponse() is the only thing that ever deletes a
   // _pendingPreviewExecutionPropsByTabId entry -- a job that never produces a response
-  // (html2canvas hangs until the queue's own jobTimeout forces handleSuspensionException's
+  // (the renderer hangs until the queue's own jobTimeout forces handleSuspensionException's
   // EXCEPTION_TIMEOUT path, or the tab gets unqueued externally, e.g. on close, while a
   // preview is still in flight) left its entry, holding executionProps and its resolveFn
   // closure, in the map for the rest of the service worker's lifetime (Codex review round
@@ -161,6 +163,7 @@ export const gsTabSuspendManager = (function() {
     // not be set?
     // Do not bypass loading state if screen capture is required
     let screenCaptureMode = await gsStorage.getOption(gsStorage.SCREEN_CAPTURE);
+    const screenCaptureMethod = await gsStorage.getOption(gsStorage.SCREEN_CAPTURE_METHOD);
     if (tab.status === 'loading') {
       const savedTabInfo = await gsIndexedDb.fetchTabInfo(tab.url);
       if (screenCaptureMode === '0' && savedTabInfo) {
@@ -187,18 +190,7 @@ export const gsTabSuspendManager = (function() {
     let tabInfo = await getContentScriptTabInfo(tab);
 
     // If tabInfo is null this is usually due to tab loading, being discarded or 'parked' on chrome restart
-    // If we need to make a screen capture and tab is not responding then reload it
-    // TODO: This doesn't actually seem to work
-    // Tabs that have just been reloaded usually fail to run the screen capture script :(
-    if (!tabInfo && screenCaptureMode !== '0' && !executionProps.reloaded) {
-      gsUtils.log(tab.id, QUEUE_ID, 'Tab is not responding. Will reload for screen capture.');
-      await gsChrome.tabsUpdate(tab.id, { url: tab.url });
-      // allow up to 30 seconds for tab to reload and trigger its subsequent suspension request
-      // note that this will not reset the DEFAULT_SUSPENSION_TIMEOUT of 60 seconds
-      requeue(30000, { reloaded: true });
-      return;
-    }
-
+    // Never reload the tab to get a screen capture. If the capture script can't run the tab is suspended without one
     tabInfo = tabInfo || {
       status: 'unknown',
       scrollPos: '0',
@@ -210,6 +202,9 @@ export const gsTabSuspendManager = (function() {
       resolve(false);
       return;
     }
+
+    // Pre-captures are keyed on the url the tab really has, not the timestamped one below
+    executionProps.precaptureUrl = tab.url;
 
     // Temporarily change tab.url to append youtube timestamp
     const timestampedUrl = await generateUrlWithYouTubeTimestamp(tab);
@@ -224,6 +219,38 @@ export const gsTabSuspendManager = (function() {
       const success = await executeTabSuspension(tab, suspendedUrl);
       resolve(success);
       return;
+    }
+
+    // captureVisibleTab can only ever see the viewport, so 'entire page' goes to the renderer first
+    const nativeFirst = screenCaptureMethod === 'native' || (screenCaptureMethod === 'auto' && screenCaptureMode === '1');
+    if (nativeFirst) {
+      executionProps.nativeCaptureTried = true;
+      const previewUrl = await gsPrecapture.captureVisibleTab(tab)
+        ?? await gsPrecapture.take(tab.id, executionProps.precaptureUrl);
+      // The capture above awaits, so this job could have been unqueued (a focus/unsuspend-all
+      // racing the native capture) while it was in flight -- check it's still the queue's
+      // current job for this tab before suspending it, same as handlePreviewImageResponse does.
+      const queuedTabDetails = getQueuedTabDetails(tab);
+      if (!queuedTabDetails || queuedTabDetails.executionProps !== executionProps) {
+        gsUtils.log(tab.id, QUEUE_ID, 'Suspension cancelled while awaiting native capture. Ignoring.',);
+        return;
+      }
+      if (previewUrl) {
+        await gsIndexedDb.addPreviewImage(tab.url, previewUrl);
+      }
+      if (previewUrl || screenCaptureMethod === 'native') {
+        if (!await checkTabEligibilityForSuspension(tab, executionProps.forceLevel)) {
+          // Settle the job rather than just returning: an unsettled promise leaves this job's
+          // queue timeout armed, and handleSuspensionException() would later force-suspend the
+          // tab anyway despite this check having just rejected it.
+          gsUtils.log(tab.id, QUEUE_ID, 'Tab is no longer eligible for suspension. Removing tab from suspensionQueue.',);
+          resolve(false);
+          return;
+        }
+        const success = await executeTabSuspension(tab, suspendedUrl);
+        resolve(success);
+        return;
+      }
     }
 
     // Hack. Save handle to resolve function so we can call it later
@@ -279,8 +306,27 @@ export const gsTabSuspendManager = (function() {
 
     if (!previewUrl) {
       gsUtils.warning(tab.id, QUEUE_ID, 'savePreviewData reported an error: ', errorMsg,);
+      const screenCaptureMethod = await gsStorage.getOption(gsStorage.SCREEN_CAPTURE_METHOD);
+      if (screenCaptureMethod === 'auto' && !queuedTabDetails.executionProps.nativeCaptureTried) {
+        previewUrl = await gsPrecapture.captureVisibleTab(tab)
+          ?? await gsPrecapture.take(tab.id, queuedTabDetails.executionProps.precaptureUrl);
+        // This fallback capture awaits too, so re-check the job identity again, same reason
+        // as the check above this function's earlier await (the queue's savePreviewData round trip).
+        const stillQueued = getQueuedTabDetails(tab);
+        if (!stillQueued || stillQueued.executionProps !== expectedExecutionProps) {
+          gsUtils.log(tab.id, QUEUE_ID, 'Suspension cancelled while awaiting fallback native capture. Ignoring.',);
+          return;
+        }
+        // Eligibility was already checked once above, before this second await -- it can
+        // just as easily have changed again during the fallback capture itself.
+        if (!await checkTabEligibilityForSuspension(tab, suspensionForceLevel)) {
+          gsUtils.log(tab.id, QUEUE_ID, 'Tab is no longer eligible for suspension. Removing tab from suspensionQueue.',);
+          queuedTabDetails.executionProps.resolveFn(false);
+          return;
+        }
+      }
     }
-    else {
+    if (previewUrl) {
       await gsIndexedDb.addPreviewImage(tab.url, previewUrl);
     }
 
@@ -289,6 +335,10 @@ export const gsTabSuspendManager = (function() {
       queuedTabDetails.executionProps.suspendedUrl,
     );
     queuedTabDetails.executionProps.resolveFn(success);
+  }
+
+  function isSuspensionInProgress(tab) {
+    return getQueuedTabDetails(tab)?.status === _suspensionQueue?.STATUS_IN_PROGRESS;
   }
 
   function getQueuedTabDetails(tab) {
@@ -511,8 +561,17 @@ export const gsTabSuspendManager = (function() {
   async function requestGeneratePreviewImage(tab, previewToken) {
     const screenCaptureMode   = await gsStorage.getOption(gsStorage.SCREEN_CAPTURE);
     const forceScreenCapture  = await gsStorage.getOption(gsStorage.SCREEN_CAPTURE_FORCE);
-    const screenCaptureLib = 'js/html2canvas.min.js';
+    const screenCaptureLib = 'js/snapdom.js';
     gsUtils.log(tab.id, QUEUE_ID, `Injecting ${screenCaptureLib} into content script`,);
+
+    // Timed from here rather than inside the page: a hidden tab's timers are delayed while
+    // its main thread is busy rendering, so an in-page deadline fires late or not at all.
+    // If the page answers first this call is dropped as stale by the token check.
+    const renderTimeout = forceScreenCapture ? PREVIEW_RENDER_TIMEOUT_HIGH_QUALITY : PREVIEW_RENDER_TIMEOUT;
+    setTimeout(() => {
+      handlePreviewImageResponse(tab, null, `Preview render timed out after ${renderTimeout}ms`, previewToken); // async. unhandled promise.
+    }, renderTimeout);
+
     gsMessages.executeScriptOnTab(tab.id, screenCaptureLib, error => {
       if (error) {
         handlePreviewImageResponse(tab, null, 'Failed to executeScriptOnTab', previewToken); // async. unhandled promise.
@@ -533,12 +592,10 @@ export const gsTabSuspendManager = (function() {
           const IMAGE_TYPE = 'image/webp';
           const IMAGE_QUALITY = force ? 0.92 : 0.5;
 
-          let height = 0;
-          let width = 0;
-
-          // check where we need to capture the whole screen
+          // 'viewport' clips to what is on screen at the current scroll position
+          let clip = 'viewport';
           if (mode === '2') {
-            height = Math.max(
+            const height = Math.max(
               window.innerHeight,
               document.body.scrollHeight,
               document.body.offsetHeight,
@@ -547,25 +604,16 @@ export const gsTabSuspendManager = (function() {
               document.documentElement.offsetHeight,
             );
             // cap the max height otherwise it fails to convert to a data url
-            height = Math.min(height, MAX_CANVAS_HEIGHT);
+            clip = { x: 0, y: 0, width: document.body.clientWidth, height: Math.min(height, MAX_CANVAS_HEIGHT) };
           }
-          else {
-            height = window.innerHeight;
-          }
-          width = document.body.clientWidth;
 
-          // console.log('Generating via html2canvas..');
           const generateCanvas = () => {
-            return html2canvas(document.body, {
-              height,
-              width,
-              logging: false,
-              imageTimeout: 10000,
-              removeContainer: false,
-              async: true,
+            return globalThis.snapdom.toCanvas(document.body, {
+              clip,
+              scale: 1,
+              embedFonts: false,
             });
           };
-
 
           const isCanvasVisible = canvas => {
             const ctx       = canvas.getContext('2d');
@@ -637,5 +685,6 @@ export const gsTabSuspendManager = (function() {
     checkTabEligibilityForSuspension,
     executeTabSuspension,
     getQueuedTabDetails,
+    isSuspensionInProgress,
   };
 })();

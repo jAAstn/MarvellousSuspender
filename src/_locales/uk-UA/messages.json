@@ -530,6 +530,51 @@
   "html_options_suspend_screen_capturing_tooltip_line3b": {
     "message": "або раптовий збій у роботі браузера, спробуйте вимкнути цю функцію."
   },
+  "html_options_suspend_screen_capture_method": {
+    "message": "Спосіб захоплення"
+  },
+  "html_options_suspend_screen_capture_method_auto": {
+    "message": "Автоматично (рекомендовано)"
+  },
+  "html_options_suspend_screen_capture_method_native": {
+    "message": "Лише знімок браузера"
+  },
+  "html_options_suspend_screen_capture_method_renderer": {
+    "message": "Лише відмальовування сторінки"
+  },
+  "html_options_suspend_screen_capture_method_tooltip_line1": {
+    "message": "В автоматичному режимі робиться справжній знімок браузера, якщо вкладка, що призупиняється, зараз відкрита перед вами."
+  },
+  "html_options_suspend_screen_capture_method_tooltip_line2": {
+    "message": "Це відбувається миттєво і працює на будь-якому сайті. Решту вкладок перемальовує відмальовувач сторінки, що повільніше."
+  },
+  "html_options_suspend_screen_capture_method_tooltip_line3": {
+    "message": "Режим «Лише знімок браузера» ніколи не запускає відмальовувач сторінки, тому вкладки, призупинені у фоні, залишаються без попереднього перегляду."
+  },
+  "html_options_suspend_screen_capture_method_tooltip_line4": {
+    "message": "Знімок браузера охоплює лише видиму частину сторінки, навіть якщо вибрано захоплення всієї сторінки."
+  },
+  "html_options_suspend_screen_capture_precapture": {
+    "message": "Keep a recent screenshot of tabs as I use them"
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line1": {
+    "message": "Takes a browser screenshot of a tab about a second after you switch to it or it finishes loading,"
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line2": {
+    "message": "so tabs that are later suspended in the background still get a preview."
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line3": {
+    "message": "Chrome only lets an extension screenshot a tab you haven't clicked its button on if it has access to all sites,"
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line4": {
+    "message": "so turning this on asks for that permission. It is only used to take these screenshots, which stay on this computer."
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line5": {
+    "message": "Only the latest screenshot of each open tab is kept, and it is deleted when the tab closes."
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line6": {
+    "message": "Incognito tabs and whitelisted sites are never captured."
+  },
   "html_options_suspend_force_screen_capture": {
     "message": "Увімкнути режим високої якості знімків екрана"
   },
