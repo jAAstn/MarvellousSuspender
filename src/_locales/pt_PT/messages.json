@@ -12,7 +12,7 @@
     "message": "Suspender/Recarregar o separador ativo"
   },
   "ext_cmd_toggle_tab_pause_description": {
-    "message": "Pausar/Retomar suspensão da guia ativa"
+    "message": "Pausar/Retomar suspensão do separador ativo"
   },
   "ext_cmd_suspend_selected_tabs_description": {
     "message": "Suspender separadores selecionados"
@@ -530,6 +530,51 @@
   "html_options_suspend_screen_capturing_tooltip_line3b": {
     "message": "travar inesperadamente, tente desativar esse recurso."
   },
+  "html_options_suspend_screen_capture_method": {
+    "message": "Método de captura"
+  },
+  "html_options_suspend_screen_capture_method_auto": {
+    "message": "Automático (recomendado)"
+  },
+  "html_options_suspend_screen_capture_method_native": {
+    "message": "Apenas captura do navegador"
+  },
+  "html_options_suspend_screen_capture_method_renderer": {
+    "message": "Apenas renderizador de página"
+  },
+  "html_options_suspend_screen_capture_method_tooltip_line1": {
+    "message": "Automático faz uma captura real do navegador quando o separador a suspender é o que está a ver."
+  },
+  "html_options_suspend_screen_capture_method_tooltip_line2": {
+    "message": "É instantâneo e funciona em todos os sites. Os outros separadores são redesenhados pelo renderizador de página, que é mais lento."
+  },
+  "html_options_suspend_screen_capture_method_tooltip_line3": {
+    "message": "Apenas captura do navegador nunca executa o renderizador de página, pelo que os separadores suspensos em segundo plano ficam sem pré-visualização."
+  },
+  "html_options_suspend_screen_capture_method_tooltip_line4": {
+    "message": "A captura do navegador cobre apenas a parte visível da página, mesmo com 'Capturar a página inteira' selecionado."
+  },
+  "html_options_suspend_screen_capture_precapture": {
+    "message": "Keep a recent screenshot of tabs as I use them"
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line1": {
+    "message": "Takes a browser screenshot of a tab about a second after you switch to it or it finishes loading,"
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line2": {
+    "message": "so tabs that are later suspended in the background still get a preview."
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line3": {
+    "message": "Chrome only lets an extension screenshot a tab you haven't clicked its button on if it has access to all sites,"
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line4": {
+    "message": "so turning this on asks for that permission. It is only used to take these screenshots, which stay on this computer."
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line5": {
+    "message": "Only the latest screenshot of each open tab is kept, and it is deleted when the tab closes."
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line6": {
+    "message": "Incognito tabs and whitelisted sites are never captured."
+  },
   "html_options_suspend_force_screen_capture": {
     "message": "Ativar o modo de captura de tela de alta qualidade"
   },
@@ -831,6 +876,9 @@
   },
   "html_permissions_backup": {
     "message": "Observação: a alteração dessa opção fará com que todas as suas guias suspensas desapareçam brevemente.\nNeste caso, agora pode ser um bom momento para fazer um backup da sua sessão de guias atuais."
+  },
+  "html_permissions_return_hint": {
+    "message": "Bem-vindo de volta: clique no botão novamente agora para concluir a concessão de acesso a ficheiros locais."
   },
   "html_update_title": {
     "message": "Atualização"
@@ -1179,7 +1227,7 @@
     "message": "O TMS pede as permissões de Transferências e conta Google apenas quando ativa a cópia de segurança local ou no Google Drive abaixo."
   },
   "html_permissions_info_note_link": {
-    "message": "Ver o detalhe completo das permissões."
+    "message": "Ver o detalhe completo das permissões"
   },
   "js_options_backup_now_error": {
     "message": "O Chrome está a perguntar onde guardar os ficheiros, pelo que as cópias de segurança automáticas não funcionarão silenciosamente. Desative \"Perguntar onde guardar cada ficheiro\" em chrome://settings/downloads."

@@ -530,6 +530,51 @@
   "html_options_suspend_screen_capturing_tooltip_line3b": {
     "message": "crash secara tidak terduga, cobalah mematikan fitur ini."
   },
+  "html_options_suspend_screen_capture_method": {
+    "message": "Metode tangkapan"
+  },
+  "html_options_suspend_screen_capture_method_auto": {
+    "message": "Otomatis (disarankan)"
+  },
+  "html_options_suspend_screen_capture_method_native": {
+    "message": "Hanya tangkapan layar browser"
+  },
+  "html_options_suspend_screen_capture_method_renderer": {
+    "message": "Hanya perender halaman"
+  },
+  "html_options_suspend_screen_capture_method_tooltip_line1": {
+    "message": "Otomatis mengambil tangkapan layar browser yang sebenarnya jika tab yang ditangguhkan adalah tab yang sedang Anda lihat."
+  },
+  "html_options_suspend_screen_capture_method_tooltip_line2": {
+    "message": "Prosesnya instan dan berfungsi di semua situs. Tab lainnya digambar ulang oleh perender halaman, yang lebih lambat."
+  },
+  "html_options_suspend_screen_capture_method_tooltip_line3": {
+    "message": "Hanya tangkapan layar browser tidak pernah menjalankan perender halaman, sehingga tab yang ditangguhkan di latar belakang tidak memiliki pratinjau."
+  },
+  "html_options_suspend_screen_capture_method_tooltip_line4": {
+    "message": "Tangkapan layar browser hanya mencakup bagian halaman yang terlihat, meskipun 'Tangkap seluruh halaman' dipilih."
+  },
+  "html_options_suspend_screen_capture_precapture": {
+    "message": "Keep a recent screenshot of tabs as I use them"
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line1": {
+    "message": "Takes a browser screenshot of a tab about a second after you switch to it or it finishes loading,"
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line2": {
+    "message": "so tabs that are later suspended in the background still get a preview."
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line3": {
+    "message": "Chrome only lets an extension screenshot a tab you haven't clicked its button on if it has access to all sites,"
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line4": {
+    "message": "so turning this on asks for that permission. It is only used to take these screenshots, which stay on this computer."
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line5": {
+    "message": "Only the latest screenshot of each open tab is kept, and it is deleted when the tab closes."
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line6": {
+    "message": "Incognito tabs and whitelisted sites are never captured."
+  },
   "html_options_suspend_force_screen_capture": {
     "message": "Aktifkan mode penangkapan layar berkualitas tinggi"
   },
@@ -831,6 +876,9 @@
   },
   "html_permissions_backup": {
     "message": "Harap diperhatikan: Mengubah opsi ini akan menyebabkan semua tab yang ditangguhkan milik Anda akan menghilang secara singkat.\nJika, sekarang mungkin adalah satu waktu yang tepat untuk menyimpan cadangan sesi tab Anda saat ini."
+  },
+  "html_permissions_return_hint": {
+    "message": "Selamat datang kembali: klik tombolnya lagi sekarang untuk menyelesaikan pemberian akses file lokal."
   },
   "html_update_title": {
     "message": "Perbarui"
@@ -1179,7 +1227,7 @@
     "message": "TMS meminta izin Unduhan dan akun Google hanya saat Anda mengaktifkan cadangan lokal atau Google Drive di bawah ini."
   },
   "html_permissions_info_note_link": {
-    "message": "Lihat rincian lengkap izin."
+    "message": "Lihat rincian lengkap izin"
   },
   "js_options_backup_now_error": {
     "message": "Chrome menanyakan tempat menyimpan file, sehingga cadangan otomatis tidak akan berfungsi secara diam-diam. Nonaktifkan \"Tanyakan tempat menyimpan setiap file\" di chrome://settings/downloads."

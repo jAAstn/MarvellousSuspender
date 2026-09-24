@@ -530,6 +530,51 @@
   "html_options_suspend_screen_capturing_tooltip_line3b": {
     "message": "意外崩溃，请尝试关闭此功能。"
   },
+  "html_options_suspend_screen_capture_method": {
+    "message": "截图方式"
+  },
+  "html_options_suspend_screen_capture_method_auto": {
+    "message": "自动（推荐）"
+  },
+  "html_options_suspend_screen_capture_method_native": {
+    "message": "仅使用浏览器截图"
+  },
+  "html_options_suspend_screen_capture_method_renderer": {
+    "message": "仅使用页面渲染器"
+  },
+  "html_options_suspend_screen_capture_method_tooltip_line1": {
+    "message": "自动模式下，如果被休眠的标签页正是您当前查看的标签页，则会使用浏览器原生截图。"
+  },
+  "html_options_suspend_screen_capture_method_tooltip_line2": {
+    "message": "原生截图瞬间完成，并且适用于所有网站。其他标签页则由速度较慢的页面渲染器重新绘制。"
+  },
+  "html_options_suspend_screen_capture_method_tooltip_line3": {
+    "message": "“仅使用浏览器截图”不会运行页面渲染器，因此在后台休眠的标签页没有预览图。"
+  },
+  "html_options_suspend_screen_capture_method_tooltip_line4": {
+    "message": "即使选择了“截取整个页面”，浏览器截图也只包含页面的可见部分。"
+  },
+  "html_options_suspend_screen_capture_precapture": {
+    "message": "Keep a recent screenshot of tabs as I use them"
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line1": {
+    "message": "Takes a browser screenshot of a tab about a second after you switch to it or it finishes loading,"
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line2": {
+    "message": "so tabs that are later suspended in the background still get a preview."
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line3": {
+    "message": "Chrome only lets an extension screenshot a tab you haven't clicked its button on if it has access to all sites,"
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line4": {
+    "message": "so turning this on asks for that permission. It is only used to take these screenshots, which stay on this computer."
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line5": {
+    "message": "Only the latest screenshot of each open tab is kept, and it is deleted when the tab closes."
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line6": {
+    "message": "Incognito tabs and whitelisted sites are never captured."
+  },
   "html_options_suspend_force_screen_capture": {
     "message": "启用高质量的屏幕截图模式"
   },
@@ -831,6 +876,9 @@
   },
   "html_permissions_backup": {
     "message": "请注意：改变这个设置可能会使你当前所有的冻结标签页短暂的消失。\n为了以防万一，最好对当前标签页的会话的做备份。"
+  },
+  "html_permissions_return_hint": {
+    "message": "欢迎回来:请再次点击按钮以完成本地文件访问权限的授予。"
   },
   "html_update_title": {
     "message": "更新"
@@ -1179,7 +1227,7 @@
     "message": "TMS 仅在您在下方启用本地或 Google 云端硬盘备份时才请求“下载内容”和 Google 账号权限。"
   },
   "html_permissions_info_note_link": {
-    "message": "查看完整的权限说明。"
+    "message": "查看完整的权限说明"
   },
   "js_options_backup_now_error": {
     "message": "Chrome 正在询问文件保存位置，因此自动备份将无法静默完成。请在 chrome://settings/downloads 中关闭「下载前询问每个文件的保存位置」。"

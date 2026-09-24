@@ -530,6 +530,51 @@
   "html_options_suspend_screen_capturing_tooltip_line3b": {
     "message": "或者 Chrome 意外當機，請嘗試關閉此功能。"
   },
+  "html_options_suspend_screen_capture_method": {
+    "message": "擷取方式"
+  },
+  "html_options_suspend_screen_capture_method_auto": {
+    "message": "自動（建議）"
+  },
+  "html_options_suspend_screen_capture_method_native": {
+    "message": "僅使用瀏覽器螢幕截圖"
+  },
+  "html_options_suspend_screen_capture_method_renderer": {
+    "message": "僅使用頁面轉譯器"
+  },
+  "html_options_suspend_screen_capture_method_tooltip_line1": {
+    "message": "自動模式下，如果被暫停的分頁正是您目前檢視的分頁，就會使用瀏覽器原生螢幕截圖。"
+  },
+  "html_options_suspend_screen_capture_method_tooltip_line2": {
+    "message": "原生截圖瞬間完成，而且適用於所有網站。其他分頁則由速度較慢的頁面轉譯器重新繪製。"
+  },
+  "html_options_suspend_screen_capture_method_tooltip_line3": {
+    "message": "「僅使用瀏覽器螢幕截圖」不會執行頁面轉譯器，因此在背景暫停的分頁沒有預覽圖。"
+  },
+  "html_options_suspend_screen_capture_method_tooltip_line4": {
+    "message": "即使選擇了「擷取整個頁面」，瀏覽器螢幕截圖也只包含頁面的可見部分。"
+  },
+  "html_options_suspend_screen_capture_precapture": {
+    "message": "Keep a recent screenshot of tabs as I use them"
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line1": {
+    "message": "Takes a browser screenshot of a tab about a second after you switch to it or it finishes loading,"
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line2": {
+    "message": "so tabs that are later suspended in the background still get a preview."
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line3": {
+    "message": "Chrome only lets an extension screenshot a tab you haven't clicked its button on if it has access to all sites,"
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line4": {
+    "message": "so turning this on asks for that permission. It is only used to take these screenshots, which stay on this computer."
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line5": {
+    "message": "Only the latest screenshot of each open tab is kept, and it is deleted when the tab closes."
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line6": {
+    "message": "Incognito tabs and whitelisted sites are never captured."
+  },
   "html_options_suspend_force_screen_capture": {
     "message": "啟用高畫質的螢幕擷取模式"
   },
@@ -576,7 +621,7 @@
     "message": "要在一列中將多個網站列入白名單，可以指定網址的一部分："
   },
   "html_options_whitelist_tooltip_line3": {
-    "message": "您還可以使用斜線包起來的文字來指定正規表示式："
+    "message": "您還可以使用斜線包起文字來指定正規表示式："
   },
   "html_options_changelog_modal_title": {
     "message": "v$version$ 新增內容",
@@ -728,7 +773,7 @@
     "message": "自動回復分頁"
   },
   "html_recovery_go_to_session_manager": {
-    "message": "前往記錄管理器"
+    "message": "前往記錄管理"
   },
   "html_recovery_important_message": {
     "message": "你目前已開啟螢幕擷取，如果擴充功能多次發生故障，建議你取消勾選。"
@@ -831,6 +876,9 @@
   },
   "html_permissions_backup": {
     "message": "請註意：改變這個設定可能會使你當前所有的暫停分頁短暫的消失。\n以防萬一，最好對當前分頁的瀏覽階段的做備份。"
+  },
+  "html_permissions_return_hint": {
+    "message": "歡迎回來:請再次點擊按鈕以完成本機檔案存取權限的授予。"
   },
   "html_update_title": {
     "message": "更新"
@@ -1044,7 +1092,7 @@
     "message": "儲存備份"
   },
   "js_permissions_button_set": {
-    "message": "打開擴充套件設定"
+    "message": "打開擴充功能設定"
   },
   "js_update_confirm": {
     "message": "您尚未匯出備份。確定要更新擴充功能嗎？"
@@ -1179,7 +1227,7 @@
     "message": "TMS 僅在您於下方啟用本機或 Google 雲端硬碟備份時，才要求下載與 Google 帳戶權限。"
   },
   "html_permissions_info_note_link": {
-    "message": "查看完整的權限明細。"
+    "message": "查看完整的權限明細"
   },
   "js_options_backup_now_error": {
     "message": "Chrome 正在詢問檔案儲存位置，因此自動備份將無法在背景靜默完成。請在 chrome://settings/downloads 中關閉「下載前詢問每個檔案的儲存位置」。"

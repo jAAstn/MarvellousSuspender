@@ -1047,9 +1047,13 @@ export const tgs = (function() {
     // Check if tab is queued for suspension
     const queuedTabDetails = gsTabSuspendManager.getQueuedTabDetails(tab);
     if (queuedTabDetails) {
-      // Requeue tab to wake it from possible sleep
-      delete queuedTabDetails.executionProps.refetchTab;
-      gsTabSuspendManager.queueTabForSuspension( tab, queuedTabDetails.executionProps.forceLevel );
+      // Requeue tab to wake it from possible sleep. A job that is already running needs no
+      // waking, and since #502 queueing it again parks a follow-up that would run a whole
+      // second suspension after the first has replaced the tab
+      if (!gsTabSuspendManager.isSuspensionInProgress(tab)) {
+        delete queuedTabDetails.executionProps.refetchTab;
+        gsTabSuspendManager.queueTabForSuspension( tab, queuedTabDetails.executionProps.forceLevel );
+      }
       return;
     }
 
@@ -1322,8 +1326,9 @@ export const tgs = (function() {
 
   async function initialiseSuspendedTab(tab) {
     gsUtils.log( tab.id, 'tgs', 'initialiseSuspendedTab' );
-    const unloadedUrl = await getTabStatePropForTabId(tab.id, STATE_UNLOADED_URL);
-    const disableUnsuspendOnReload = await getTabStatePropForTabId( tab.id, STATE_DISABLE_UNSUSPEND_ON_RELOAD );
+    const tabState = await getTabStateForTabId(tab.id);
+    const unloadedUrl = tabState?.[STATE_UNLOADED_URL];
+    const disableUnsuspendOnReload = tabState?.[STATE_DISABLE_UNSUSPEND_ON_RELOAD];
     await deleteTabStateForTabId(tab.id);
 
     if (await isCurrentFocusedTab(tab)) {
@@ -1798,7 +1803,13 @@ export const tgs = (function() {
       callback(gsUtils.STATUS_LOADING);
       return;
     }
-    //check if it is a blockedFile tab (this needs to have precedence over isSpecialTab)
+    //check if it is a blockedFile tab (this needs to have precedence over isSpecialTab).
+    //calculateTabStatus() runs directly in popup.js/debug.js's own module instance, not
+    //only via background.js's (the only one that calls gsSession.initAsPromised()), so
+    //make sure this context's own file-permission state has resolved at least once (#514).
+    if (gsUtils.isFileTab(tab)) {
+      await gsSession.ensureFileUrlsStateReady();
+    }
     if (gsUtils.isBlockedFileTab(tab)) {
       callback(gsUtils.STATUS_BLOCKED_FILE);
       return;
@@ -2025,12 +2036,77 @@ export const tgs = (function() {
   }
 
   //HANDLERS FOR RIGHT-CLICK CONTEXT MENU
-  async function buildContextMenu(showContextMenu) {
+  // Serializes every buildContextMenu() call — from background.js's rebuildContextMenu()
+  // (top-level wake + onInstalled) and from gsUtils.js's ADD_CONTEXT settings-change
+  // handler alike — behind one shared chain, so a removeAll()+create() sequence from one
+  // caller can never interleave with another caller's own removeAll()/create() calls
+  // (mc-triage review on PR #500: two unsynchronized rebuildContextMenu() calls on every
+  // install/update could otherwise race, one's removeAll() wiping the other's just-created
+  // items, or their create() calls colliding on duplicate ids).
+  let _contextMenuChain = Promise.resolve();
+  function buildContextMenu(showContextMenu) {
+    const result = _contextMenuChain.then(() => _buildContextMenuImpl(showContextMenu));
+    // Keep the chain alive even if this call's removal/creation throws, so a later,
+    // unrelated call still runs instead of being stuck behind a permanently rejected chain.
+    _contextMenuChain = result.catch(() => {});
+    return result;
+  }
+
+  // Single source of truth for the whole "clear then rebuild from the current setting"
+  // sequence — used by background.js (top-level wake + onInstalled) AND gsUtils.js's
+  // ADD_CONTEXT settings-change handler (mc-triage review round 3, PR #500: that handler
+  // used to call buildContextMenu(addContextMenu) directly, a single call with no
+  // preceding removeAll(), which could create() duplicate-id items if the menu already
+  // existed). Coalesces concurrent calls to itself into the one already in flight instead
+  // of starting a second, redundant removeAll->getOption->create sequence (the top-level
+  // and onInstalled calls otherwise fire independently on every install/update).
+  let _rebuildContextMenuPromise = null;
+  let _rebuildContextMenuDirty = false;
+  async function rebuildContextMenu() {
+    if (chrome.extension.inIncognitoContext) return;
+    if (_rebuildContextMenuPromise) {
+      // A call arriving while a rebuild is already running would otherwise just get hand
+      // back that in-flight promise as-is, which reads ADD_CONTEXT only once, near its
+      // start -- if that's the very setting change this call exists to apply, the
+      // in-flight run finishes using the value from before this call happened, and nothing
+      // re-reads it until some later change or a session restart (Codex review, PR #500:
+      // e.g. gsUtils.js's ADD_CONTEXT settings-change handler firing again while an earlier
+      // rebuild from that same handler, onInstalled, or the wake-time self-heal is still in
+      // flight). Marking dirty makes the in-flight run loop once more with a fresh read
+      // before resolving, similar in spirit to gsTabQueue.js's own follow-up mechanism.
+      _rebuildContextMenuDirty = true;
+      return _rebuildContextMenuPromise;
+    }
+    _rebuildContextMenuPromise = (async () => {
+      try {
+        do {
+          _rebuildContextMenuDirty = false;
+          await buildContextMenu(false);
+          const contextMenus = await gsStorage.getOption(gsStorage.ADD_CONTEXT);
+          await buildContextMenu(contextMenus);
+        } while (_rebuildContextMenuDirty);
+      }
+      finally {
+        _rebuildContextMenuPromise = null;
+      }
+    })();
+    return _rebuildContextMenuPromise;
+  }
+
+  function _buildContextMenuImpl(showContextMenu) {
     /** @type { chrome.contextMenus.CreateProperties['contexts'] } */
     const allContexts = ['page', 'frame', 'editable', 'image', 'video', 'audio']; //'selection',
 
     if (!showContextMenu) {
-      chrome.contextMenus.removeAll();
+      // Returned so callers (background.js's rebuildContextMenu()) can await the removal
+      // before issuing the create() calls below — chrome.contextMenus.removeAll() is
+      // async, and an unawaited one racing against the creates that follow it can delete
+      // the just-created items instead of the stale ones it was meant to clear (Codex
+      // review, PR #500). removeAll() only returns a Promise from Chrome 123+ (returns
+      // undefined below that), but manifest.json's minimum_chrome_version is 110, so it's
+      // wrapped in an explicit Promise via the callback form to actually await completion
+      // across the whole supported range (Codex review round 2).
+      return new Promise((resolve) => chrome.contextMenus.removeAll(resolve));
     }
     else {
       chrome.contextMenus.create({
@@ -2179,36 +2255,98 @@ export const tgs = (function() {
 
       // [FORK] Tab strip context menu items (right-click on tab in tab bar)
       if (await isTabStripContextSupported()) {
-        const tabContextMenus = [
-          { id: 'tab_toggle_suspend', title: gsUtils.getMessage('js_context_toggle_suspend_state') },
-          { id: 'tab_toggle_pause', title: gsUtils.getMessage('js_context_toggle_pause_suspension') },
-          { id: 'tab_never_suspend_domain', title: gsUtils.getMessage('js_context_never_suspend_domain') },
-          { id: 'tab_never_suspend_page', title: gsUtils.getMessage('js_context_never_suspend_page') },
-          { id: 'tab_suspend_group', title: gsUtils.getMessage('js_context_suspend_tab_group') },
-          { id: 'tab_unsuspend_group', title: gsUtils.getMessage('js_context_unsuspend_tab_group') },
-          // enabled always: they act on the right-clicked tab, so gating on the active one would
-          // grey them out on valid targets. See refreshNeverSuspendGroupMenuItems().
-          { id: 'tab_never_suspend_group', title: gsUtils.getMessage('js_context_never_suspend_group') },
-          { id: 'tab_allow_suspending_group', title: gsUtils.getMessage('js_context_allow_suspending_group') },
-          { id: 'tab_suspend_ungrouped', title: gsUtils.getMessage('js_context_suspend_ungrouped_tabs') },
-          { id: 'tab_unsuspend_ungrouped', title: gsUtils.getMessage('js_context_unsuspend_ungrouped_tabs') },
-          { id: 'tab_separator1', type: 'separator' },
-          { id: 'tab_soft_suspend_other_tabs', title: gsUtils.getMessage('js_context_soft_suspend_other_tabs_in_window') },
-          { id: 'tab_unsuspend_all_in_window', title: gsUtils.getMessage('js_context_unsuspend_all_tabs_in_window') },
-          { id: 'tab_separator2', type: 'separator' },
-          { id: 'tab_soft_suspend_all', title: gsUtils.getMessage('js_context_soft_suspend_all_tabs') },
-          { id: 'tab_unsuspend_all', title: gsUtils.getMessage('js_context_unsuspend_all_tabs') },
-        ];
-        for (const tabContextMenu of tabContextMenus) {
+        chrome.contextMenus.create({
+          id: 'tab_toggle_suspend',
+          title: gsUtils.getMessage('js_context_toggle_suspend_state'),
+          contexts: ['tab'],
+        });
+        chrome.contextMenus.create({
+          id: 'tab_toggle_pause',
+          title: gsUtils.getMessage('js_context_toggle_pause_suspension'),
+          contexts: ['tab'],
+        });
+        chrome.contextMenus.create({
+          id: 'tab_never_suspend_domain',
+          title: gsUtils.getMessage('js_context_never_suspend_domain'),
+          contexts: ['tab'],
+        });
+        chrome.contextMenus.create({
+          id: 'tab_never_suspend_page',
+          title: gsUtils.getMessage('js_context_never_suspend_page'),
+          contexts: ['tab'],
+        });
+        chrome.contextMenus.create({
+          id: 'tab_suspend_group',
+          title: gsUtils.getMessage('js_context_suspend_tab_group'),
+          contexts: ['tab'],
+        });
+        chrome.contextMenus.create({
+          id: 'tab_unsuspend_group',
+          title: gsUtils.getMessage('js_context_unsuspend_tab_group'),
+          contexts: ['tab'],
+        });
+        // enabled always: they act on the right-clicked tab, so gating on the active one would
+        // grey them out on valid targets. See refreshNeverSuspendGroupMenuItems().
+        chrome.contextMenus.create({
+          id: 'tab_never_suspend_group',
+          title: gsUtils.getMessage('js_context_never_suspend_group'),
+          contexts: ['tab'],
+        });
+        chrome.contextMenus.create({
+          id: 'tab_allow_suspending_group',
+          title: gsUtils.getMessage('js_context_allow_suspending_group'),
+          contexts: ['tab'],
+        });
+        chrome.contextMenus.create({
+          id: 'tab_suspend_ungrouped',
+          title: gsUtils.getMessage('js_context_suspend_ungrouped_tabs'),
+          contexts: ['tab'],
+        });
+        chrome.contextMenus.create({
+          id: 'tab_unsuspend_ungrouped',
+          title: gsUtils.getMessage('js_context_unsuspend_ungrouped_tabs'),
+          contexts: ['tab'],
+        });
+        chrome.contextMenus.create({
+          id: 'tab_separator1',
+          type: 'separator',
+          contexts: ['tab'],
+        });
+        chrome.contextMenus.create({
+          id: 'tab_soft_suspend_other_tabs',
+          title: gsUtils.getMessage('js_context_soft_suspend_other_tabs_in_window'),
+          contexts: ['tab'],
+        });
+        chrome.contextMenus.create({
+          id: 'tab_unsuspend_all_in_window',
+          title: gsUtils.getMessage('js_context_unsuspend_all_tabs_in_window'),
+          contexts: ['tab'],
+        });
+        chrome.contextMenus.create({
+          id: 'tab_separator2',
+          type: 'separator',
+          contexts: ['tab'],
+        });
+        chrome.contextMenus.create({
+          id: 'tab_soft_suspend_all',
+          title: gsUtils.getMessage('js_context_soft_suspend_all_tabs'),
+          contexts: ['tab'],
+        });
+        const lastCreate = new Promise((resolve) => {
           chrome.contextMenus.create({
-            ...tabContextMenu,
+            id: 'tab_unsuspend_all',
+            title: gsUtils.getMessage('js_context_unsuspend_all_tabs'),
             contexts: ['tab'],
-          });
-        }
+          }, resolve);
+        });
       }
 
       // enable the page item above if the tab in front of the user is in a named group (#133)
+      // Debounced/fire-and-forget (own internal setTimeout), so it doesn't need to be
+      // awaited here and its ordering relative to lastCreate above doesn't matter.
       refreshNeverSuspendGroupMenuItems();
+
+      return lastCreate;
     }
   }
 
@@ -2231,7 +2369,7 @@ export const tgs = (function() {
     setTabStatePropForTabId,
 
     initialiseTabContentScript,
-    buildContextMenu,
+    rebuildContextMenu,
     getActiveTabStatus,
     calculateTabStatus,
 

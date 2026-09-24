@@ -444,7 +444,7 @@
     "message": "anula los enlaces que saltan a una sección (#) al cargar."
   },
   "html_options_suspend_automatically_unsuspend": {
-    "message": "Anular suspensión automáticamente de la pestaña cuando sea vista"
+    "message": "Dessuspender automáticamente la pestaña cuando sea vista"
   },
   "html_options_suspend_reload_unsuspend_background": {
     "message": "Recargar también reactiva las pestañas en segundo plano (no solo la pestaña activa)"
@@ -492,7 +492,7 @@
     "message": "Tema"
   },
   "html_options_suspend_theme_light": {
-    "message": "Claro"
+    "message": "Brillante"
   },
   "html_options_suspend_theme_dark": {
     "message": "Oscuro"
@@ -501,10 +501,10 @@
     "message": "Sistema"
   },
   "html_options_suspend_screen_capturing": {
-    "message": "Captura de pantalla"
+    "message": "Pantalla de grabación"
   },
   "html_options_suspend_screen_capturing_disabled": {
-    "message": "Deshabilitada"
+    "message": "Discapacitada"
   },
   "html_options_suspend_screen_capturing_screen_only": {
     "message": "Capturar solo la parte superior de la pantalla"
@@ -529,6 +529,51 @@
   },
   "html_options_suspend_screen_capturing_tooltip_line3b": {
     "message": "falla inesperadamente, intente deshabilitar esta función."
+  },
+  "html_options_suspend_screen_capture_method": {
+    "message": "Método de captura"
+  },
+  "html_options_suspend_screen_capture_method_auto": {
+    "message": "Automático (recomendado)"
+  },
+  "html_options_suspend_screen_capture_method_native": {
+    "message": "Solo captura del navegador"
+  },
+  "html_options_suspend_screen_capture_method_renderer": {
+    "message": "Solo renderizador de página"
+  },
+  "html_options_suspend_screen_capture_method_tooltip_line1": {
+    "message": "Automático toma una captura real del navegador cuando la pestaña que se suspende es la que estás viendo."
+  },
+  "html_options_suspend_screen_capture_method_tooltip_line2": {
+    "message": "Es instantáneo y funciona en todos los sitios. Las demás pestañas las redibuja el renderizador de página, que es más lento."
+  },
+  "html_options_suspend_screen_capture_method_tooltip_line3": {
+    "message": "Solo captura del navegador nunca ejecuta el renderizador de página, así que las pestañas suspendidas en segundo plano no tienen vista previa."
+  },
+  "html_options_suspend_screen_capture_method_tooltip_line4": {
+    "message": "La captura del navegador solo cubre la parte visible de la página, aunque esté seleccionado 'Capturar toda la página'."
+  },
+  "html_options_suspend_screen_capture_precapture": {
+    "message": "Keep a recent screenshot of tabs as I use them"
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line1": {
+    "message": "Takes a browser screenshot of a tab about a second after you switch to it or it finishes loading,"
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line2": {
+    "message": "so tabs that are later suspended in the background still get a preview."
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line3": {
+    "message": "Chrome only lets an extension screenshot a tab you haven't clicked its button on if it has access to all sites,"
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line4": {
+    "message": "so turning this on asks for that permission. It is only used to take these screenshots, which stay on this computer."
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line5": {
+    "message": "Only the latest screenshot of each open tab is kept, and it is deleted when the tab closes."
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line6": {
+    "message": "Incognito tabs and whitelisted sites are never captured."
   },
   "html_options_suspend_force_screen_capture": {
     "message": "Habilitar el modo de captura de pantalla de alta calidad"
@@ -656,7 +701,7 @@
     "message": "Normalmente, tu navegador solo descarta pestañas cuando la memoria del sistema es muy baja."
   },
   "html_options_suspend_on_low_memory_tooltip_line4": {
-    "message": "Tenga en cuenta: Esto puede causar que las pestañas se suspendan antes del tiempo que ha"
+    "message": "Tenga en cuenta: Esto puede causar que las pestañas se suspendan antes del tiempo que tiene"
   },
   "html_options_suspend_on_low_memory_tooltip_line5": {
     "message": "especificado en las opciones de suspensión Automática de pestañas."
@@ -831,6 +876,9 @@
   },
   "html_permissions_backup": {
     "message": "Tenga en cuenta: si cambia esta opción, todas las pestañas suspendidas desaparecerán brevemente.\nPor si acaso, ahora podría ser un buen momento para guardar una copia de seguridad de su sesión de pestañas actual."
+  },
+  "html_permissions_return_hint": {
+    "message": "Bienvenido de nuevo: haz clic de nuevo en el botón para terminar de conceder el acceso a archivos locales."
   },
   "html_update_title": {
     "message": "Actualizar"
@@ -1179,7 +1227,7 @@
     "message": "TMS solicita los permisos de Descargas y cuenta de Google solo cuando activas la copia de seguridad local o en Google Drive a continuación."
   },
   "html_permissions_info_note_link": {
-    "message": "Ver el desglose completo de permisos."
+    "message": "Ver el desglose completo de permisos"
   },
   "js_options_backup_now_error": {
     "message": "Chrome está preguntando dónde guardar los archivos, por lo que las copias de seguridad automáticas no funcionarán en silencio. Desactiva \"Preguntar dónde guardar cada archivo\" en chrome://settings/downloads."

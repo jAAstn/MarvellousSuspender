@@ -270,7 +270,7 @@
     "message": "Versuche die Erweiterung neu zu starten. Falls das Problem weiterhin besteht, frage nach Hilfe auf der"
   },
   "html_broken_line2_github_page": {
-    "message": "GitHub Projektseite"
+    "message": "Github Projektseite"
   },
   "html_broken_line3": {
     "message": "Du kannst verlorene Tabs auf der"
@@ -529,6 +529,51 @@
   },
   "html_options_suspend_screen_capturing_tooltip_line3b": {
     "message": "unerwartet abstürzt, solltest du diese Einstellung deaktivieren."
+  },
+  "html_options_suspend_screen_capture_method": {
+    "message": "Aufnahmemethode"
+  },
+  "html_options_suspend_screen_capture_method_auto": {
+    "message": "Automatisch (empfohlen)"
+  },
+  "html_options_suspend_screen_capture_method_native": {
+    "message": "Nur Browser-Screenshot"
+  },
+  "html_options_suspend_screen_capture_method_renderer": {
+    "message": "Nur Seiten-Renderer"
+  },
+  "html_options_suspend_screen_capture_method_tooltip_line1": {
+    "message": "Automatisch erstellt einen echten Browser-Screenshot, wenn der zu suspendierende Tab gerade sichtbar ist."
+  },
+  "html_options_suspend_screen_capture_method_tooltip_line2": {
+    "message": "Das geschieht sofort und funktioniert auf jeder Website. Alle anderen Tabs werden vom langsameren Seiten-Renderer nachgezeichnet."
+  },
+  "html_options_suspend_screen_capture_method_tooltip_line3": {
+    "message": "Nur Browser-Screenshot führt den Seiten-Renderer nie aus, daher erhalten im Hintergrund suspendierte Tabs keine Vorschau."
+  },
+  "html_options_suspend_screen_capture_method_tooltip_line4": {
+    "message": "Ein Browser-Screenshot erfasst nur den sichtbaren Teil der Seite, auch wenn 'Gesamte Seite aufnehmen' gewählt ist."
+  },
+  "html_options_suspend_screen_capture_precapture": {
+    "message": "Keep a recent screenshot of tabs as I use them"
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line1": {
+    "message": "Takes a browser screenshot of a tab about a second after you switch to it or it finishes loading,"
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line2": {
+    "message": "so tabs that are later suspended in the background still get a preview."
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line3": {
+    "message": "Chrome only lets an extension screenshot a tab you haven't clicked its button on if it has access to all sites,"
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line4": {
+    "message": "so turning this on asks for that permission. It is only used to take these screenshots, which stay on this computer."
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line5": {
+    "message": "Only the latest screenshot of each open tab is kept, and it is deleted when the tab closes."
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line6": {
+    "message": "Incognito tabs and whitelisted sites are never captured."
   },
   "html_options_suspend_force_screen_capture": {
     "message": "Hochwertige Bildschirmaufnahmen aktivieren"
@@ -855,6 +900,9 @@
   },
   "html_permissions_backup": {
     "message": "Hinweis: Das Ändern der Option lässt deine ausgesetzten Tabs kurz verschwinden.\nFür den Fall der Fälle solltest du jetzt eine Sicherung der aktuellen Sitzung anlegen."
+  },
+  "html_permissions_return_hint": {
+    "message": "Willkommen zurück: Klicken Sie jetzt erneut auf die Schaltfläche, um den Zugriff auf lokale Dateien abzuschließen."
   },
   "html_update_title": {
     "message": "Aktualisierung"
@@ -1222,7 +1270,7 @@
     "message": "TMS fordert die Berechtigungen für Downloads und Google-Konto nur an, wenn du unten die lokale oder Google-Drive-Sicherung aktivierst."
   },
   "html_permissions_info_note_link": {
-    "message": "Vollständige Aufschlüsselung der Berechtigungen ansehen."
+    "message": "Vollständige Aufschlüsselung der Berechtigungen ansehen"
   },
   "js_options_backup_now_error": {
     "message": "Chrome fragt nach, wo Dateien gespeichert werden sollen, wodurch automatische Sicherungen nicht im Hintergrund funktionieren. Deaktiviere „Nachfragen, wo jede Datei gespeichert werden soll“ in chrome://settings/downloads."

@@ -80,6 +80,17 @@ export const gsTabCheckManager = (function() {
         // may actually switch to 'loading' in a few seconds even though a
         // tab reload has not be performed
         queueTabCheckAsPromise(tab, { resuspend: true }, 1000)
+          // A per-item rejection (e.g. gsTabSuspendManager.js's executeTabSuspension()
+          // calling unqueueTabCheck() because this tab got suspended mid-check) must not
+          // abort this Promise.all -- that would propagate all the way out of
+          // runStartupChecks() with no catch around it, stranding gsInitialisationMode at
+          // true for the rest of the session (#485 follow-up review). Same Promise.all
+          // safety concern gsTabQueue.js's own exceptionFn contract already exists for,
+          // applied here at the one aggregation point that can't tolerate a rejection.
+          .catch((error) => {
+            gsUtils.log(tab.id, QUEUE_ID, 'Tab check promise rejected (likely cancelled). Treating as unsuccessful.', error);
+            return gsUtils.STATUS_UNKNOWN;
+          })
       );
     }
 
@@ -257,7 +268,8 @@ export const gsTabCheckManager = (function() {
     // frozen-tab shortcut below because this only navigates the tab (no message to the
     // page), so it must still run for a frozen blocked-file tab rather than being
     // pre-empted by that shortcut reporting it as a healthy suspended tab.
-    if (!gsSession.isFileUrlsAccessAllowed()) {
+    await gsSession.ensureFileUrlsStateReady();
+    if (!gsSession.isFileUrlsUsable()) {
       const url = tab.url || tab.pendingUrl;
       const originalUrl = gsUtils.getOriginalUrl(url);
       if (originalUrl && originalUrl.indexOf('file') === 0) {

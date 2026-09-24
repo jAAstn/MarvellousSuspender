@@ -3,6 +3,7 @@ import  { gsBackup }              from './gsBackup.js';
 import  { gsChrome }              from './gsChrome.js';
 import  { gsIndexedDb }           from './gsIndexedDb.js';
 import  { gsNewsFeed }            from './gsNewsFeed.js';
+import  { gsPrecapture }          from './gsPrecapture.js';
 import  { gsSession }             from './gsSession.js';
 import  { gsStorage }             from './gsStorage.js';
 import  { gsTabSuspendManager }   from './gsTabSuspendManager.js';
@@ -84,16 +85,96 @@ import  { tgs }                   from './tgs.js';
     });
   }
 
+  // Single source of truth for "has this browser session's context menu already been
+  // (re)built at least once" (#491) — used by both chrome.runtime.onInstalled below and
+  // the wake-time self-heal further down. Reading gsContextMenuRebuildDone and later
+  // saving it as true are two separate awaited storage calls, not one atomic operation;
+  // without an in-memory gate around the whole read-rebuild-write sequence, the wake-time
+  // self-heal's own independent read of that same sentinel could land in the gap between
+  // onInstalled's rebuild finishing and its sentinel write actually committing, see the
+  // sentinel as still false, and fire a second, redundant rebuild on the very same wake
+  // (mc-triage review round 6, PR #500). Coalescing every caller onto one in-flight
+  // promise, the same pattern tgs.rebuildContextMenu() itself already uses to serialize
+  // concurrent buildContextMenu() calls, closes that gap.
+  let _contextMenuRebuildOncePromise = null;
+  function ensureContextMenuRebuiltOnce() {
+    // The incognito split worker shares chrome.storage.session with the regular profile's
+    // worker, but tgs.rebuildContextMenu() itself no-ops for incognito (it has no context
+    // menu of its own) -- onInstalled used to call this unconditionally (unlike the
+    // wake-time self-heal call below, which already guards itself), so the incognito
+    // worker's own onInstalled could still fall through to the sentinel write below and
+    // mark the session's rebuild "done" without any real rebuild ever happening, causing
+    // the regular worker's own self-heal to skip its rebuild for the rest of the session
+    // (Codex review, PR #500). Guarded here, once, so every caller is covered by
+    // construction rather than needing its own guard.
+    if (chrome.extension.inIncognitoContext) {
+      return Promise.resolve();
+    }
+    if (_contextMenuRebuildOncePromise) {
+      return _contextMenuRebuildOncePromise;
+    }
+    _contextMenuRebuildOncePromise = (async () => {
+      const done = await gsStorage.getStorage('session', 'gsContextMenuRebuildDone');
+      if (done) return;
+      await tgs.rebuildContextMenu();
+      await gsStorage.saveStorage('session', 'gsContextMenuRebuildDone', true);
+    })().catch((error) => {
+      // A transient failure (e.g. a storage error) must not permanently wedge every later
+      // call behind this one rejected attempt for the rest of the service worker instance's
+      // lifetime — unlike tgs.js's own rebuildContextMenu(), which only coalesces genuinely
+      // concurrent calls and always clears its gate, this one is also meant to skip real
+      // work once successful, so only a failure clears it, letting the next caller retry
+      // (mc-triage review round 7, PR #500).
+      _contextMenuRebuildOncePromise = null;
+      throw error;
+    });
+    return _contextMenuRebuildOncePromise;
+  }
+
+  // Reacts to an ADD_CONTEXT change regardless of which context wrote it -- gsUtils.js's
+  // performPostSaveUpdates() used to call tgs.rebuildContextMenu() directly, or message
+  // this service worker to, from whichever context the Options page toggle actually ran
+  // in; both broke down for an Options page opened in an incognito window under
+  // "incognito": "split", since chrome.runtime.sendMessage() from there can only ever
+  // reach the incognito instance's own separate service worker, whose
+  // rebuildContextMenu() no-ops for incognito by design, never this one (Codex review
+  // round 2, PR #500). gsSettings lives in chrome.storage.local, which -- unlike
+  // chrome.storage.sync or a runtime message -- is not partitioned by that split (see
+  // gsUtils.js's log-buffer migration note): a write from either instance fires this
+  // listener, so this service worker's own reaction to it is reached uniformly no matter
+  // which context, or which profile side of the split, made the change.
+  if (!chrome.extension.inIncognitoContext) {
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (areaName !== 'local' || !changes.gsSettings) return;
+      const oldAddContext = changes.gsSettings.oldValue?.[gsStorage.ADD_CONTEXT];
+      const newAddContext = changes.gsSettings.newValue?.[gsStorage.ADD_CONTEXT];
+      if (oldAddContext !== newAddContext) {
+        tgs.rebuildContextMenu();
+      }
+    });
+  }
+
   chrome.runtime.onInstalled.addListener(async (details) => {
     gsUtils.log('2 runtime.onInstalled', details);
     // Fired when the extension is first installed, when the extension is updated to a new version, and when Chrome is updated to a new version.
     // Fired when an unpacked extension is reloaded
 
-    //add context menu items
-    if (!chrome.extension.inIncognitoContext) {
-      tgs.buildContextMenu(false);
-      const contextMenus = await gsStorage.getOption(gsStorage.ADD_CONTEXT);
-      tgs.buildContextMenu(contextMenus);
+    // ensureContextMenuRebuiltOnce() (#491) is the single source of truth for the whole
+    // "clear then rebuild from the current setting" sequence, also run below (gated to the
+    // first wake of the browser session, see gsContextMenuRebuildDone) as a self-heal for a
+    // browser whose internal menu registry gets cleared outside these two triggers
+    // (confirmed on Opera GX 135), which would otherwise leave the context menu missing
+    // until the next extension update or a manual toggle of the Options checkbox. It
+    // self-coalesces, so this call and that one don't race each other into a duplicate
+    // removeAll->create sequence, or a redundant one, on a fresh install/update. Caught
+    // (rather than left to reject the listener) so a failure here doesn't also skip the
+    // UPDATE_AVAILABLE cleanup below, matching the self-heal call's own error handling
+    // (mc-triage review round 7, PR #500).
+    try {
+      await ensureContextMenuRebuiltOnce();
+    }
+    catch (error) {
+      gsUtils.error('background', 'rebuildContextMenu failed:', error?.message || error, error?.stack || '');
     }
 
     // remove update message after extension has been updated
@@ -121,6 +202,31 @@ import  { tgs }                   from './tgs.js';
     startupOnce();
 
   });
+
+  // Context-menu self-heal (#491), same family as the onStartup-unreliability gaps fixed
+  // for favicons (#474/#397/PR #484) but a different code path. Gated to the first
+  // service-worker wake of the browser session (mc-triage review round 3): the failure
+  // this guards against — a browser's internal menu registry getting cleared outside the
+  // known onInstalled/manual-toggle triggers — is rare, but a plain removeAll()+create()
+  // cycle running on every alarm/message/tab-check wake during normal browsing would mean
+  // a user right-clicking during that brief window could see the menu transiently empty on
+  // a cadence unrelated to when the actual bug occurs. chrome.storage.session is cleared
+  // at the browser-session boundary, so a missing sentinel here means this is genuinely a
+  // fresh session (mirrors gsStartupOnceRun's own reasoning above), not just a SW recycle.
+  // Routed through ensureContextMenuRebuiltOnce() rather than its own independent
+  // read-rebuild-write sequence, so a concurrent onInstalled call on the same wake
+  // coalesces onto this one (or vice versa) instead of racing it (mc-triage review round
+  // 6, PR #500).
+  if (!chrome.extension.inIncognitoContext) {
+    ensureContextMenuRebuiltOnce().catch((error) => {
+      // JSON.stringify(error) on a plain Error yields "{}" (message/stack are
+      // non-enumerable), so the persisted debug-report entry would otherwise read
+      // "rebuildContextMenu failed {}" with nothing to diagnose the very intermittent
+      // failure this self-heal exists to catch (mc-triage review round 5, PR #500 —
+      // same pattern this PR's own CHANGELOG entry already documents fixing in gsBackup.js).
+      gsUtils.error('background', 'rebuildContextMenu failed:', error?.message || error, error?.stack || '');
+    });
+  }
 
   // Fallback for onStartup unreliability (some Chromium builds, notably Brave, never
   // fire it after a normal restart, see #397). chrome.storage.session is cleared at the
@@ -220,7 +326,7 @@ import  { tgs }                   from './tgs.js';
             break;
           }
           case 'savePreviewData' : {
-            await gsTabSuspendManager.handlePreviewImageResponse(sender.tab, request.previewUrl, request.errorMsg); // async. unhandled promise
+            await gsTabSuspendManager.handlePreviewImageResponse(sender.tab, request.previewUrl, request.errorMsg, request.token); // async. unhandled promise
             break;
           }
           case 'fetchNewsFeed' : {
@@ -670,9 +776,18 @@ import  { tgs }                   from './tgs.js';
     chrome.windows.onFocusChanged.addListener(async (windowId) => {
       tgs.refreshNeverSuspendGroupMenuItems();
       await tgs.handleWindowFocusChanged(windowId);
+      // Switching between windows without changing either one's active tab fires this,
+      // not tabs.onActivated, so the precapture scheduler would otherwise never see it.
+      if (windowId !== chrome.windows.WINDOW_ID_NONE) {
+        const [activeTab] = await gsChrome.tabsQuery({ active: true, windowId });
+        if (activeTab) {
+          gsPrecapture.schedule(activeTab.id);
+        }
+      }
     });
     chrome.tabs.onActivated.addListener(async (activeInfo) => {
       gsUtils.log(activeInfo.tabId, 'tab onActivated');
+      gsPrecapture.schedule(activeInfo.tabId);
       tgs.refreshNeverSuspendGroupMenuItems();
       await tgs.handleTabFocusChanged(activeInfo.tabId, activeInfo.windowId); // async. unhandled promise
 
@@ -690,6 +805,7 @@ import  { tgs }                   from './tgs.js';
     });
     chrome.tabs.onReplaced.addListener(async (addedTabId, removedTabId) => {
       gsUtils.log(removedTabId, 'tab onReplaced', addedTabId, removedTabId);
+      gsPrecapture.remove(removedTabId);
       tgs.queueSessionTimer();
       await tgs.removeTabIdReferences(removedTabId);
     });
@@ -707,26 +823,25 @@ import  { tgs }                   from './tgs.js';
     });
     chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
       gsUtils.log(tabId, 'tab removed.');
+      gsPrecapture.remove(tabId);
       tgs.queueSessionTimer();
       await tgs.removeTabIdReferences(tabId);
     });
 
     async function claimTab(tabId) {
-      const tabs  = await gsChrome.tabsQuery();
-      for (const tab of tabs) {
-        const url = tab.url ?? '';
-        if (
-          tab.id == tabId &&
-          url.match('^chrome-extension://[^/]*/suspended\\.html') &&    // Match any extension with suspended.html at the end
-          gsUtils.isSuspendedTab(tab, true) &&
-          !url.includes(chrome.runtime.id)                              // But exclude our own extension ID
-        ) {
-          const newUrl = url.replace(
-            gsUtils.getRootUrl(tab.url),
-            chrome.runtime.id,
-          );
-          await gsChrome.tabsUpdate(tab.id, { url: newUrl });
-        }
+      const tab = await gsChrome.tabsGet(tabId);
+      if (!tab) return;
+      const url = tab.url ?? '';
+      if (
+        url.match('^chrome-extension://[^/]*/suspended\\.html') &&    // Match any extension with suspended.html at the end
+        gsUtils.isSuspendedTab(tab, true) &&
+        !url.includes(chrome.runtime.id)                              // But exclude our own extension ID
+      ) {
+        const newUrl = url.replace(
+          gsUtils.getRootUrl(tab.url),
+          chrome.runtime.id,
+        );
+        await gsChrome.tabsUpdate(tab.id, { url: newUrl });
       }
     };
 
@@ -751,6 +866,13 @@ import  { tgs }                   from './tgs.js';
         return;
       }
       gsUtils.log(tabId, 'tab onUpdated', changeInfo, tab.url);
+
+      if (changeInfo.url) {
+        gsPrecapture.remove(tabId);
+      }
+      if (tab.active && (changeInfo.url || changeInfo.status === 'complete')) {
+        gsPrecapture.schedule(tabId);
+      }
 
       if (changeInfo.status === 'complete' && await gsStorage.getOption(gsStorage.CLAIM_BY_DEFAULT)) {
         await claimTab(tabId);
@@ -869,6 +991,20 @@ import  { tgs }                   from './tgs.js';
   chrome.commands.onCommand.addListener(commandListener);
   chrome.contextMenus.onClicked.addListener(contextMenuListener);
   chrome.alarms.onAlarm.addListener(alarmListener);
+  // A file:// tab already open and backgrounded when the file:///* host permission is
+  // granted (permissions.js) never fires a chrome.tabs.onUpdated event of its own, so it
+  // never re-runs the isNormalTab() check that would now include it and arm its
+  // auto-suspend timer - it would otherwise stay unscheduled until some unrelated tab
+  // event happens to touch it (Codex review, #514). gsSession's own onAdded listener
+  // (registered in every context) only refreshes its cached flags; this background-only
+  // one re-scans every open tab, the same way a settings change already does.
+  chrome.permissions.onAdded.addListener(async (permissions) => {
+    if (!permissions.origins?.includes('file:///*')) return;
+    await gsSession.ensureFileUrlsStateReady();
+    if (gsSession.isFileUrlsUsable()) {
+      tgs.resetAutoSuspendTimerForAllTabs();
+    }
+  });
   addChromeListeners();
   addMiscListeners();
 

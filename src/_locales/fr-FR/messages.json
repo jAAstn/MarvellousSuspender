@@ -422,6 +422,51 @@
   "html_options_suspend_screen_capturing_tooltip_line3b": {
     "message": "plantant inopinément, essayez de désactiver cette fonctionnalité."
   },
+  "html_options_suspend_screen_capture_method": {
+    "message": "Méthode de capture"
+  },
+  "html_options_suspend_screen_capture_method_auto": {
+    "message": "Automatique (recommandé)"
+  },
+  "html_options_suspend_screen_capture_method_native": {
+    "message": "Capture du navigateur uniquement"
+  },
+  "html_options_suspend_screen_capture_method_renderer": {
+    "message": "Moteur de rendu de page uniquement"
+  },
+  "html_options_suspend_screen_capture_method_tooltip_line1": {
+    "message": "Automatique prend une vraie capture du navigateur lorsque l'onglet suspendu est celui que vous regardez."
+  },
+  "html_options_suspend_screen_capture_method_tooltip_line2": {
+    "message": "C'est instantané et cela fonctionne sur tous les sites. Les autres onglets sont redessinés par le moteur de rendu de page, plus lent."
+  },
+  "html_options_suspend_screen_capture_method_tooltip_line3": {
+    "message": "Capture du navigateur uniquement n'exécute jamais le moteur de rendu de page : les onglets suspendus en arrière-plan n'ont donc pas d'aperçu."
+  },
+  "html_options_suspend_screen_capture_method_tooltip_line4": {
+    "message": "Une capture du navigateur ne couvre que la partie visible de la page, même si 'Capturer la page entière' est sélectionné."
+  },
+  "html_options_suspend_screen_capture_precapture": {
+    "message": "Keep a recent screenshot of tabs as I use them"
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line1": {
+    "message": "Takes a browser screenshot of a tab about a second after you switch to it or it finishes loading,"
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line2": {
+    "message": "so tabs that are later suspended in the background still get a preview."
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line3": {
+    "message": "Chrome only lets an extension screenshot a tab you haven't clicked its button on if it has access to all sites,"
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line4": {
+    "message": "so turning this on asks for that permission. It is only used to take these screenshots, which stay on this computer."
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line5": {
+    "message": "Only the latest screenshot of each open tab is kept, and it is deleted when the tab closes."
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line6": {
+    "message": "Incognito tabs and whitelisted sites are never captured."
+  },
   "html_options_suspend_force_screen_capture": {
     "message": "Activer le mode de capture d'écran haute qualité"
   },
@@ -661,6 +706,9 @@
   },
   "html_permissions_backup": {
     "message": "Remarque : changer cette option fera disparaître brièvement tous vos onglets suspendus.\nAu cas où, le moment est peut-être bien choisi pour enregistrer une sauvegarde de votre session d'onglets en cours."
+  },
+  "html_permissions_return_hint": {
+    "message": "Bienvenue de retour : cliquez de nouveau sur le bouton pour terminer l'octroi de l'accès aux fichiers locaux."
   },
   "html_update_title": {
     "message": "Mis à jour"

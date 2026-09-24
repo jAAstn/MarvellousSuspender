@@ -530,6 +530,51 @@
   "html_options_suspend_screen_capturing_tooltip_line3b": {
     "message": "neočakávane padá, skúste túto funkciu vypnúť."
   },
+  "html_options_suspend_screen_capture_method": {
+    "message": "Spôsob snímania"
+  },
+  "html_options_suspend_screen_capture_method_auto": {
+    "message": "Automaticky (odporúčané)"
+  },
+  "html_options_suspend_screen_capture_method_native": {
+    "message": "Iba snímka prehliadača"
+  },
+  "html_options_suspend_screen_capture_method_renderer": {
+    "message": "Iba vykreslenie stránky"
+  },
+  "html_options_suspend_screen_capture_method_tooltip_line1": {
+    "message": "Automatický režim vytvorí skutočnú snímku prehliadača, ak je uspávaná karta práve tá, na ktorú sa pozeráte."
+  },
+  "html_options_suspend_screen_capture_method_tooltip_line2": {
+    "message": "Je to okamžité a funguje to na každom webe. Ostatné karty prekresľuje vykresľovač stránky, ktorý je pomalší."
+  },
+  "html_options_suspend_screen_capture_method_tooltip_line3": {
+    "message": "Režim Iba snímka prehliadača nikdy nespúšťa vykresľovač stránky, takže karty uspané na pozadí nemajú náhľad."
+  },
+  "html_options_suspend_screen_capture_method_tooltip_line4": {
+    "message": "Snímka prehliadača zachytí iba viditeľnú časť stránky, aj keď je zvolené snímanie celej stránky."
+  },
+  "html_options_suspend_screen_capture_precapture": {
+    "message": "Keep a recent screenshot of tabs as I use them"
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line1": {
+    "message": "Takes a browser screenshot of a tab about a second after you switch to it or it finishes loading,"
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line2": {
+    "message": "so tabs that are later suspended in the background still get a preview."
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line3": {
+    "message": "Chrome only lets an extension screenshot a tab you haven't clicked its button on if it has access to all sites,"
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line4": {
+    "message": "so turning this on asks for that permission. It is only used to take these screenshots, which stay on this computer."
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line5": {
+    "message": "Only the latest screenshot of each open tab is kept, and it is deleted when the tab closes."
+  },
+  "html_options_suspend_screen_capture_precapture_tooltip_line6": {
+    "message": "Incognito tabs and whitelisted sites are never captured."
+  },
   "html_options_suspend_force_screen_capture": {
     "message": "Povoliť vysoko kvalitný režim snímania obrazovky"
   },
@@ -831,6 +876,9 @@
   },
   "html_permissions_backup": {
     "message": "Upozornenie: Zmenou tohto nastavenia dočasne zmiznú všetky vaše pozastavené karty.\nPre istotu je teraz vhodná chvíľa uložiť zálohu aktuálnej relácie kariet."
+  },
+  "html_permissions_return_hint": {
+    "message": "Vitajte späť: kliknite znova na tlačidlo a dokončite udelenie prístupu k lokálnym súborom."
   },
   "html_update_title": {
     "message": "Aktualizácia"
@@ -1179,7 +1227,7 @@
     "message": "TMS si vyžiada povolenia Stiahnuté súbory a účet Google iba vtedy, keď nižšie zapnete lokálnu zálohu alebo zálohu na Disku Google."
   },
   "html_permissions_info_note_link": {
-    "message": "Zobraziť úplný prehľad povolení."
+    "message": "Zobraziť úplný prehľad povolení"
   },
   "js_options_backup_now_error": {
     "message": "Chrome sa pýta, kam ukladať súbory, takže automatické zálohy nebudú fungovať ticho. Vypnite „Pýtať sa, kam uložiť každý súbor“ v chrome://settings/downloads."

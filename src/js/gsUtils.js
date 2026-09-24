@@ -446,10 +446,10 @@ export const gsUtils = {
     return false;
   },
 
-  //tests if the page is a file:// page AND the user has not enabled access to
-  //file URLs in extension settings
+  //tests if the page is a file:// page AND the extension can't actually suspend it
+  //yet (toggle off, host permission not granted, or both - see gsSession.isFileUrlsUsable)
   isBlockedFileTab(tab) {
-    if (gsUtils.isFileTab(tab) && !gsSession.isFileUrlsAccessAllowed()) {
+    if (gsUtils.isFileTab(tab) && !gsSession.isFileUrlsUsable()) {
       return true;
     }
     return false;
@@ -1155,11 +1155,19 @@ export const gsUtils = {
 
   performPostSaveUpdates(changedSettingKeys, oldValueBySettingKey, newValueBySettingKey) {
     // gsUtils.log('gsUtils', 'performPostSaveUpdates');
-    if (changedSettingKeys.includes(gsStorage.LEGACY_MASCOT)) {
+    const updateMascot = changedSettingKeys.includes(gsStorage.LEGACY_MASCOT);
+    const updateTheme = changedSettingKeys.includes(gsStorage.THEME);
+    const updatePreviewMode = changedSettingKeys.includes(gsStorage.SCREEN_CAPTURE);
+    const updateDiscardAfterSuspend = changedSettingKeys.includes(gsStorage.DISCARD_AFTER_SUSPEND);
+    const updateIgnoreForms = changedSettingKeys.includes(gsStorage.IGNORE_FORMS);
+    const updateSuspendInPlaceOfDiscard = changedSettingKeys.includes(gsStorage.SUSPEND_IN_PLACE_OF_DISCARD);
+
+    if (updateMascot) {
       tgs.refreshDefaultIcon();
       tgs.setIconStatusForActiveTab();
     }
     chrome.tabs.query({}, async (tabs) => {
+      let settingsPromise = null;
       for (const tab of tabs) {
         if (gsUtils.isSpecialTab(tab)) {
           continue;
@@ -1181,7 +1189,6 @@ export const gsUtils = {
           }
 
           // if the legacy mascot setting has changed then refresh already-suspended tabs
-          const updateMascot = changedSettingKeys.includes(gsStorage.LEGACY_MASCOT);
           if (updateMascot) {
             if (await gsChrome.contextGetByTabId(tab.id)) {
               if (tab.id) {
@@ -1200,8 +1207,6 @@ export const gsUtils = {
           // loaded leaves that tab's cache stale until it's next reactivated, one
           // self-correcting flash at that point via the normal async setTheme() call,
           // same as this cache's baseline behaviour before it existed at all.
-          const updateTheme = changedSettingKeys.includes(gsStorage.THEME);
-          const updatePreviewMode = changedSettingKeys.includes(gsStorage.SCREEN_CAPTURE);
           if (updateTheme || updatePreviewMode) {
             if (await gsChrome.contextGetByTabId(tab.id)) {
               if (updateTheme) {
@@ -1226,18 +1231,18 @@ export const gsUtils = {
           }
 
           //if discardAfterSuspend has changed then updated discarded tabs
-          const updateDiscardAfterSuspend = changedSettingKeys.includes(gsStorage.DISCARD_AFTER_SUSPEND);
-          gsStorage.getOption(gsStorage.DISCARD_AFTER_SUSPEND).then((discardAfterSuspend) => {
-            if (
-              updateDiscardAfterSuspend &&
-              discardAfterSuspend &&
-              gsUtils.isSuspendedTab(tab) &&
-              !gsUtils.isDiscardedTab(tab)
-            ) {
-              gsTabDiscardManager.queueTabForDiscard(tab);
-            }
-            return;
-          });
+          if (updateDiscardAfterSuspend) {
+            gsStorage.getOption(gsStorage.DISCARD_AFTER_SUSPEND).then((discardAfterSuspend) => {
+              if (
+                discardAfterSuspend &&
+                gsUtils.isSuspendedTab(tab) &&
+                !gsUtils.isDiscardedTab(tab)
+              ) {
+                gsTabDiscardManager.queueTabForDiscard(tab);
+              }
+              return;
+            });
+          }
         }
 
         if (!gsUtils.isNormalTab(tab, true)) {
@@ -1245,14 +1250,12 @@ export const gsUtils = {
         }
 
         //update content scripts of normal tabs
-        const updateIgnoreForms = changedSettingKeys.includes(
-          gsStorage.IGNORE_FORMS,
-        );
         if (updateIgnoreForms) {
           gsMessages.sendUpdateToContentScriptOfTab(tab); //async. unhandled error
         }
 
-        gsStorage.getSettings().then(async (settings) => {
+        settingsPromise = settingsPromise ?? gsStorage.getSettings();
+        settingsPromise.then(async (settings) => {
           //update suspend timers
           const updateSuspendTime =
             changedSettingKeys.includes(gsStorage.SUSPEND_TIME) ||
@@ -1294,7 +1297,6 @@ export const gsUtils = {
         });
 
         //if SuspendInPlaceOfDiscard has changed then updated discarded tabs
-        const updateSuspendInPlaceOfDiscard = changedSettingKeys.includes( gsStorage.SUSPEND_IN_PLACE_OF_DISCARD );
         if (updateSuspendInPlaceOfDiscard && gsUtils.isDiscardedTab(tab)) {
           gsTabDiscardManager.handleDiscardedUnsuspendedTab(tab); //async. unhandled promise.
           //note: this may cause the tab to suspend
@@ -1315,12 +1317,19 @@ export const gsUtils = {
       };
     });
 
-    //if context menu has been disabled then remove from chrome
-    if (gsUtils.contains(changedSettingKeys, gsStorage.ADD_CONTEXT)) {
-      gsStorage.getOption(gsStorage.ADD_CONTEXT).then((addContextMenu) => {
-        tgs.buildContextMenu(addContextMenu);
-      });
-    }
+    // Context-menu rebuilds on an ADD_CONTEXT change are handled entirely by
+    // background.js's own chrome.storage.onChanged listener on the gsSettings blob now,
+    // not from here. This function runs in every context that loads gsUtils.js, Options
+    // page included, each with its own separate tgs.js module instance -- calling
+    // tgs.rebuildContextMenu() directly from a non-service-worker context, or messaging
+    // the service worker to do it, both broke down for an Options page opened in an
+    // incognito window under "incognito": "split": chrome.runtime.sendMessage() from
+    // there can only ever reach the incognito instance's own service worker, whose
+    // rebuildContextMenu() no-ops for incognito by design, never the regular profile's
+    // (Codex review round 2, PR #500). gsSettings itself lives in chrome.storage.local,
+    // which -- unlike chrome.storage.sync or a runtime message -- is not partitioned by
+    // that split (see the log-buffer migration note above), so the regular service
+    // worker's own listener on it is reached by a write from either instance, uniformly.
 
     //if screenshot preferences have changed then update the queue parameters
     if (
