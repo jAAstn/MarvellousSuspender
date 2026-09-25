@@ -465,19 +465,19 @@
     "message": "Applica il risparmio di memoria integrato del browser durante la sospensione"
   },
   "html_options_suspend_discard_after_suspend_tooltip_line1a": {
-    "message": "Riduce ulteriormente l'uso di memoria di una scheda sospesa, sfruttando"
+    "message": "Dopo che una scheda è sospesa, consenti anche a Chrome di scaricarla"
   },
   "html_options_suspend_discard_after_suspend_tooltip_line1b": {
-    "message": "la funzione integrata del browser di 'scaricamento delle schede'. Questo può portare fino"
+    "message": "completamente dalla memoria. Questo libera più risorse di sistema per"
   },
   "html_options_suspend_discard_after_suspend_tooltip_line1c": {
-    "message": "al 500% di risparmio di memoria quando si lavora con molte schede."
+    "message": "scheda (utile se tieni aperte centinaia di schede)."
   },
   "html_options_suspend_discard_after_suspend_tooltip_line2a": {
-    "message": "Tuttavia, causerà anche un lieve ritardo nel rendering quando selezioni"
+    "message": "Questo comporta la perdita dello stato della scheda finché non viene"
   },
   "html_options_suspend_discard_after_suspend_tooltip_line2b": {
-    "message": "una schede sospesa."
+"message": "ricaricata."
   },
   "html_options_suspend_discard_after_suspend_tooltip_line3a": {
     "message": "Per maggiori informazioni sullo scaricamento delle schede, consulta:"
@@ -1228,7 +1228,11 @@
   },
   "js_options_backup_next_run": {
     "message": "Prossima esecuzione: $time$",
-    "placeholders": { "time": { "content": "$1" } }
+    "placeholders": {
+      "time": {
+        "content": "$1"
+      }
+    }
   },
   "js_options_backup_last_local": {
     "message": "Ultimo backup: $date$",
