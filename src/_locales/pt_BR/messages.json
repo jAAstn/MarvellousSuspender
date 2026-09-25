@@ -9,7 +9,7 @@
     "message": "The Marvellous Suspender"
   },
   "ext_cmd_toggle_tab_suspension_description": {
-    "message": "Suspender/Reativar a guia ativa"
+"message": "Suspender/Recarregar a aba ativa"
   },
   "ext_cmd_suspend_tab_group_description": {
     "message": "Suspender todas as guias do grupo da guia ativa"
@@ -30,13 +30,13 @@
     "message": "Suspender todas as outras abas na janela ativa"
   },
   "ext_cmd_force_suspend_active_window_description": {
-    "message": "Forçar a suspensão das outras guias na janela ativa"
+"message": "Forçar a suspensão de todas as abas na janela ativa"
   },
   "ext_cmd_soft_suspend_all_windows_description": {
     "message": "Suspender todas as abas em todas as janelas"
   },
   "ext_cmd_force_suspend_all_windows_description": {
-    "message": "Forçar a suspensão de todas as guias em todas as janelas"
+"message": "Forçar suspensão de todas as abas em todas as janelas"
   },
   "js_context_toggle_pause_suspension": {
     "message": "Pausar/Retomar a suspensão desta aba"
@@ -51,7 +51,7 @@
     "message": "Suspender as abas selecionadas"
   },
   "js_context_unsuspend_selected_tabs": {
-    "message": "Reativar as guias selecionadas"
+"message": "Recarregar as abas selecionadas"
   },
   "js_context_suspend_tab_group": {
     "message": "Suspender todas as guias deste grupo"
@@ -75,7 +75,7 @@
     "message": "Nunca suspender este grupo (somente grupos com nome)"
   },
   "js_context_soft_suspend_other_tabs_in_window": {
-    "message": "Suspender todas as outras guias desta janela"
+"message": "Suspender todas as outras abas nessa janela"
   },
   "js_context_soft_suspend_all_tabs": {
     "message": "Suspender todas as abas em todas as janelas"
@@ -84,7 +84,7 @@
     "message": "Forçar a suspensão de todas as abas em todas as janelas"
   },
   "js_context_unsuspend_all_tabs": {
-    "message": "Reativar todas as guias em todas as janelas"
+"message": "Recarregar todas as abas em todas as janelas"
   },
   "html_health_title": {
     "message": "Saúde das guias (Beta)"
@@ -210,7 +210,7 @@
     "message": "Trazido a você por"
   },
   "html_about_report_issues_prefix": {
-    "message": "Se você tiver feedback ou quiser relatar um problema, pode fazê-lo na"
+"message": "Se você tiver comentários ou quiser comunicar um problema, poderá fazer isso no"
   },
   "html_about_report_issues_suffix": {
     "message": ". Verifique se sua ideia ou problema já existe antes de criar um novo. Obrigado!"
@@ -441,19 +441,19 @@
     "message": "Aplicar a economia de memória integrada do navegador ao suspender"
   },
   "html_options_suspend_discard_after_suspend_tooltip_line1a": {
-    "message": "Reduz ainda mais o uso de memória de uma guia suspensa, utilizando"
+    "message": "Depois que uma guia é suspensa, permita também que o Chrome a"
   },
   "html_options_suspend_discard_after_suspend_tooltip_line1b": {
-    "message": "a funcionalidade nativa de 'descarte de guias' do navegador. Isso pode gerar até"
+    "message": "descarregue totalmente da memória. Isso libera mais recursos do"
   },
   "html_options_suspend_discard_after_suspend_tooltip_line1c": {
-    "message": "500% de economia de memória ao trabalhar com muitas guias."
+    "message": "sistema por guia (útil se você mantiver centenas de guias abertas)."
   },
   "html_options_suspend_discard_after_suspend_tooltip_line2a": {
-    "message": "No entanto, também causará um leve atraso na renderização ao selecionar"
+    "message": "Isso tem o custo de perder o estado da guia até que ela seja"
   },
   "html_options_suspend_discard_after_suspend_tooltip_line2b": {
-    "message": "uma guia suspensa."
+    "message": "recarregada."
   },
   "html_options_suspend_discard_after_suspend_tooltip_line3a": {
     "message": "Para mais informações sobre o descarte de guias, consulte:"
@@ -1200,14 +1200,18 @@
     "message": "O TMS solicita as permissões de Downloads e conta do Google somente quando você ativa o backup local ou no Google Drive abaixo."
   },
   "html_permissions_info_note_link": {
-    "message": "Veja o detalhamento completo das permissões"
+"message": "Ver o detalhamento completo das permissões"
   },
   "js_options_backup_now_error": {
     "message": "O Chrome está perguntando onde salvar os arquivos, então os backups automáticos não funcionarão silenciosamente. Desative \"Perguntar onde salvar cada arquivo\" em chrome://settings/downloads."
   },
   "js_options_backup_next_run": {
     "message": "Próxima execução: $time$",
-    "placeholders": { "time": { "content": "$1" } }
+    "placeholders": {
+      "time": {
+        "content": "$1"
+      }
+    }
   },
   "js_options_backup_last_local": {
     "message": "Último backup: $date$",
