@@ -465,16 +465,16 @@
     "message": "Applica il risparmio di memoria integrato del browser durante la sospensione"
   },
   "html_options_suspend_discard_after_suspend_tooltip_line1a": {
-    "message": "Dopo che una scheda è sospesa, consenti anche a Chrome di scaricarla"
+    "message": "After a tab is suspended, also let Chrome fully unload it from"
   },
   "html_options_suspend_discard_after_suspend_tooltip_line1b": {
-    "message": "completamente dalla memoria. Questo libera più risorse di sistema per"
+    "message": "memory. This frees up more system resources per tab (useful if"
   },
   "html_options_suspend_discard_after_suspend_tooltip_line1c": {
-"message": "scheda (utile se tieni aperte centinaia di schede)."
+    "message": "scheda (utile se tieni aperte centinaia di schede)."
   },
   "html_options_suspend_discard_after_suspend_tooltip_line2a": {
-    "message": "Questo comporta la perdita dello stato della scheda finché non viene"
+    "message": "This comes at the cost of losing tab state until the tab is"
   },
   "html_options_suspend_discard_after_suspend_tooltip_line2b": {
 "message": "ricaricata."

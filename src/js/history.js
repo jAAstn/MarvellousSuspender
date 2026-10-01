@@ -289,7 +289,7 @@ import  { gsCustomSuspend }       from './gsCustomSuspend.js'; // [FORK]
       if (url.protocol.match(/extension:$/i)
         && url.pathname.match(/\/(suspend(ed)?|park).html$/i)
         && url.host.toLowerCase() !== chrome.runtime.id
-        ) {
+      ) {
         foundExts[url.host] ??= { name: knownExtensions[url.host] ?? url.host, count: 0 };
         foundExts[url.host].count += 1;
         // generateTabInfo(tab, url);
