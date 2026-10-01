@@ -27,6 +27,10 @@ export const gsTabCheckManager = (function() {
   let   _tabCheckQueue;
   // Suspended tabs a running startup pass will still check itself (#523).
   const _startupReservedTabIds = new Set();
+  // True from startupOnce() until the startup pass has read its tab list: every tab existing
+  // by then is checked by that pass, within its own limit, so per-tab checks wait (#523).
+  // Afterwards only the ids in _startupReservedTabIds are left to the pass.
+  let _startupPending = false;
   const INIT_RESOLVERS = [];
 
   // NOTE: This mainly checks suspended tabs
@@ -76,6 +80,8 @@ export const gsTabCheckManager = (function() {
     // Reserve the whole set up front: a restored page loading before its worker reaches it
     // must not get an ordinary check from tgs.initialiseSuspendedTab() outside this budget.
     suspendedTabs.forEach((tab) => _startupReservedTabIds.add(tab.id));
+    // The list is read: a tab created from now on is not in it and needs its own check.
+    _startupPending = false;
     // Recover visible pages first, retaining input order in the returned results.
     pending.sort((a, b) => Number(b.tab.active) - Number(a.tab.active));
     let next = 0;
@@ -87,9 +93,9 @@ export const gsTabCheckManager = (function() {
           // an ordinary check already running for this tab must not get a fresh budget
           // when it is eventually promoted, nor hold this worker past it (#523).
           const initialDeadline = Date.now() + INITIAL_TAB_CHECK_BUDGET;
-          results[index] = await waitUntil(
+          results[index] = await gsUtils.withTimeout(
             queueTabCheckAsPromise(tab, { refetchTab: true, initialCheck: true, initialDeadline }),
-            initialDeadline + INITIAL_TAB_CHECK_WAIT_GRACE,
+            INITIAL_TAB_CHECK_BUDGET + INITIAL_TAB_CHECK_WAIT_GRACE,
             () => {
               gsUtils.log(tab.id, QUEUE_ID, 'Initial check still pending after its budget. Cancelling.');
               // Free its queue slot before admitting another tab. An executor still awaiting
@@ -98,6 +104,7 @@ export const gsTabCheckManager = (function() {
               if (getQueuedTabDetails(tab)?.executionProps.initialDeadline === initialDeadline) {
                 _tabCheckQueue.unqueueTab(tab, { keepFollowUp: true });
               }
+              return gsUtils.STATUS_UNKNOWN;
             }
           );
         }
@@ -120,25 +127,6 @@ export const gsTabCheckManager = (function() {
       suspendedTabs.forEach((tab) => _startupReservedTabIds.delete(tab.id));
     }
     return results;
-  }
-
-  async function waitUntil(promise, deadline, onTimeout) {
-    let timer;
-    promise.catch(() => {}); // may settle after this wait has given up
-    try {
-      return await Promise.race([
-        promise,
-        new Promise((resolve) => {
-          timer = setTimeout(() => {
-            onTimeout();
-            resolve(gsUtils.STATUS_UNKNOWN);
-          }, Math.max(0, deadline - Date.now()));
-        }),
-      ]);
-    }
-    finally {
-      clearTimeout(timer);
-    }
   }
 
   function getTabUpdatedListener() {
@@ -168,6 +156,23 @@ export const gsTabCheckManager = (function() {
         queueTabCheck(_tab, { refetchTab: false, initialCheck: tabQueueDetails.executionProps.initialCheck }, 0);
       }
     };
+  }
+
+  function setStartupPending(pending) {
+    _startupPending = pending;
+  }
+
+  // onCreated check for a suspended tab: usually a reopened closed tab. During a session
+  // restore every restored tab fires onCreated before the startup pass runs; queueing
+  // them all here bypassed the startup pass's three-check limit and reloaded the whole
+  // restored set in a burst (#523). A tab created after the pass has read the tab list is
+  // not in it, so it gets its own check unless the pass reserved it.
+  function queueCreatedTabCheck(tab) {
+    if (_startupPending || _startupReservedTabIds.has(tab.id)) {
+      gsUtils.log(tab.id, QUEUE_ID, 'Startup pass pending. Leaving the created tab to it.');
+      return;
+    }
+    queueTabCheck(tab, {}, 5000);
   }
 
   function queueTabCheck(tab, executionProps, processingDelay) {
@@ -204,9 +209,11 @@ export const gsTabCheckManager = (function() {
     }
   }
 
-  // True when a check is queued or running for the tab, or a startup pass will check it.
+  // True when a check is queued or running for the tab, or a startup pass will check it
+  // (including a pass that has not read its tab list yet).
   function hasPendingTabCheck(tab) {
-    return _startupReservedTabIds.has(tab.id) || Boolean(getQueuedTabDetails(tab));
+    // Before the queue exists nothing can be queued; answer without its warning.
+    return _startupPending || _startupReservedTabIds.has(tab.id) || Boolean(_tabCheckQueue?.getQueuedTabDetails(tab));
   }
 
   function getQueuedTabDetails(tab) {
@@ -290,19 +297,6 @@ export const gsTabCheckManager = (function() {
       resolve(gsUtils.STATUS_UNKNOWN);
       return true;
     };
-    if (executionProps.resuspend && !executionProps.resuspended) {
-      if (abandoned()) return;
-      await gsUtils.resuspendSuspendedTab(tab);
-      // refetchTab so the next pass re-reads the tab after the resuspend reload rather
-      // than trusting this now-stale snapshot (status, frozen, groupId can all have
-      // changed). Matches the resuspend requeue in the missing-view branch below.
-      requeue(DEFAULT_TAB_CHECK_REQUEUE_DELAY, {
-        resuspended: true,
-        refetchTab: true,
-      });
-      return;
-    }
-
     if (executionProps.refetchTab) {
       gsUtils.log(tab.id, QUEUE_ID, 'Tab refetch requested. Getting updated tab..');
       tab = await getUpdatedTab(tab);
@@ -393,6 +387,7 @@ export const gsTabCheckManager = (function() {
       if (tab.groupId > 0) {
         const suspendedUrl = tab.url; // original URL before any reload
         const latestTab = await gsChrome.tabsGet(tab.id);
+        if (abandoned()) return;
         if (latestTab && !gsUtils.isSuspendedTab(latestTab)) {
           const targetGroupId = latestTab.groupId > 0 ? latestTab.groupId : tab.groupId;
           const { windowId, index, pinned, active } = latestTab;
@@ -436,7 +431,8 @@ export const gsTabCheckManager = (function() {
           !latestTab ||
           latestTab.url !== tab.url ||
           !gsUtils.isSuspendedTab(latestTab) ||
-          latestTab.discarded ||
+          // A discarded active tab (selected in a background window) still needs the reload.
+          (latestTab.discarded && !latestTab.active) ||
           latestTab.frozen
         ) {
           gsUtils.log(tab.id, QUEUE_ID, 'Receiverless tab changed before reload. Requeueing.');
@@ -467,7 +463,10 @@ export const gsTabCheckManager = (function() {
       requeue(DEFAULT_TAB_CHECK_REQUEUE_DELAY, { refetchTab: true });
       return;
     }
-    const tabSessionOk = suspendInfo.sessionId === (await gsSession.getSessionId());
+    // Read once, here: the initTab below reuses it, so no storage read sits between the
+    // abandonment guard and that message.
+    const sessionId = await gsSession.getSessionId();
+    const tabSessionOk = suspendInfo.sessionId === sessionId;
     const tabBasicsOk = ensureSuspendedTabTitleAndFaviconSet(tab);
     const tabVisibleOk = attemptDiscarding || suspendInfo.isVisible;
     const tabChecksOk = tabSessionOk && tabBasicsOk && tabVisibleOk;
@@ -479,9 +478,6 @@ export const gsTabCheckManager = (function() {
         resolve(gsUtils.STATUS_UNKNOWN);
         return;
       }
-      // Read before the guard: a stalled storage lookup here must not let an abandoned
-      // check send initTab once it resumes.
-      const sessionId = await gsSession.getSessionId();
       if (abandoned()) return;
       try {
         gsUtils.log(tab.id, QUEUE_ID, 'Reinitialising suspendedTab: ', tab);
@@ -556,30 +552,17 @@ export const gsTabCheckManager = (function() {
   // Only startup checks get the short terminal deadline (#523). Ordinary checks (focus,
   // discard) keep waiting on the page, bounded by the queue's own job timeout.
   async function sendSuspendedTabMessage(tabId, message, bounded, onLateResponse) {
-    if (!bounded) {
-      return chrome.tabs.sendMessage(tabId, message);
-    }
-    let timer;
-    let timedOut = false;
     const request = chrome.tabs.sendMessage(tabId, message);
-    try {
-      return await Promise.race([
-        request,
-        new Promise((resolve, reject) => {
-          timer = setTimeout(() => {
-            timedOut = true;
-            gsUtils.warning(tabId, QUEUE_ID, 'Suspended tab message timed out; deferring check.', message.action);
-            reject(MESSAGE_TIMED_OUT);
-          }, SUSPENDED_MESSAGE_TIMEOUT);
-        }),
-      ]);
+    if (!bounded) {
+      return request;
     }
-    finally {
-      clearTimeout(timer);
-      if (timedOut && onLateResponse) {
+    return gsUtils.withTimeout(request, SUSPENDED_MESSAGE_TIMEOUT, () => {
+      gsUtils.warning(tabId, QUEUE_ID, 'Suspended tab message timed out; deferring check.', message.action);
+      if (onLateResponse) {
         request.then(onLateResponse, () => {});
       }
-    }
+      return Promise.reject(MESSAGE_TIMED_OUT);
+    });
   }
 
   // function ensureSuspendedTabVisible(tabView) {
@@ -715,8 +698,10 @@ export const gsTabCheckManager = (function() {
   return {
     initAsPromised,
     performInitialisationTabChecks,
+    queueCreatedTabCheck,
     queueTabCheck,
     queueTabCheckAsPromise,
+    setStartupPending,
     unqueueTabCheck,
     getQueuedTabDetails,
     hasPendingTabCheck,
