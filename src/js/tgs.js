@@ -2243,92 +2243,6 @@ export const tgs = (function() {
         contexts: allContexts,
       });
 
-      // Tab strip context menu items (right-click on tab in tab bar)
-      const tabStripItems = [
-        {
-          id: 'tab_toggle_suspend',
-          title: gsUtils.getMessage('js_context_toggle_suspend_state'),
-          contexts: ['tab'],
-        },
-        {
-          id: 'tab_toggle_pause',
-          title: gsUtils.getMessage('js_context_toggle_pause_suspension'),
-          contexts: ['tab'],
-        },
-        {
-          id: 'tab_never_suspend_domain',
-          title: gsUtils.getMessage('js_context_never_suspend_domain'),
-          contexts: ['tab'],
-        },
-        {
-          id: 'tab_never_suspend_page',
-          title: gsUtils.getMessage('js_context_never_suspend_page'),
-          contexts: ['tab'],
-        },
-        {
-          id: 'tab_suspend_group',
-          title: gsUtils.getMessage('js_context_suspend_tab_group'),
-          contexts: ['tab'],
-        },
-        {
-          id: 'tab_unsuspend_group',
-          title: gsUtils.getMessage('js_context_unsuspend_tab_group'),
-          contexts: ['tab'],
-        },
-        // enabled always: they act on the right-clicked tab, so gating on the active one would
-        // grey them out on valid targets. See refreshNeverSuspendGroupMenuItems().
-        {
-          id: 'tab_never_suspend_group',
-          title: gsUtils.getMessage('js_context_never_suspend_group'),
-          contexts: ['tab'],
-        },
-        {
-          id: 'tab_allow_suspending_group',
-          title: gsUtils.getMessage('js_context_allow_suspending_group'),
-          contexts: ['tab'],
-        },
-        {
-          id: 'tab_suspend_ungrouped',
-          title: gsUtils.getMessage('js_context_suspend_ungrouped_tabs'),
-          contexts: ['tab'],
-        },
-        {
-          id: 'tab_unsuspend_ungrouped',
-          title: gsUtils.getMessage('js_context_unsuspend_ungrouped_tabs'),
-          contexts: ['tab'],
-        },
-        {
-          id: 'tab_separator1',
-          type: 'separator',
-          contexts: ['tab'],
-        },
-        {
-          id: 'tab_soft_suspend_other_tabs',
-          title: gsUtils.getMessage('js_context_soft_suspend_other_tabs_in_window'),
-          contexts: ['tab'],
-        },
-        {
-          id: 'tab_unsuspend_all_in_window',
-          title: gsUtils.getMessage('js_context_unsuspend_all_tabs_in_window'),
-          contexts: ['tab'],
-        },
-        {
-          id: 'tab_separator2',
-          type: 'separator',
-          contexts: ['tab'],
-        },
-        {
-          id: 'tab_soft_suspend_all',
-          title: gsUtils.getMessage('js_context_soft_suspend_all_tabs'),
-          contexts: ['tab'],
-        },
-        {
-          id: 'tab_unsuspend_all',
-          title: gsUtils.getMessage('js_context_unsuspend_all_tabs'),
-          contexts: ['tab'],
-        },
-      ];
-
       // Every create() from here on reports back, and the build resolves with the last
       // one issued (mc-triage review round 3, PR #500): chrome.contextMenus.create() calls
       // are processed by the browser in the order issued, so that one settling means every
@@ -2367,27 +2281,28 @@ export const tgs = (function() {
       // a browser that refuses it keeps the page menu built above and goes without.
       // Only the first item is tried that way: it tells whether the browser takes the
       // context at all. A throw on a later one is a defect in that item and is not caught.
-      const [firstTabStripItem, ...otherTabStripItems] = tabStripItems;
-      let tabStripMenuAvailable = true;
-      let lastCreate;
-      try {
-        lastCreate = createContextMenuItem(firstTabStripItem);
-      }
-      catch (error) {
-        tabStripMenuAvailable = false;
-        const reason = String(error?.message ?? error);
-        if (reason.includes("property 'contexts'")) {
-          gsUtils.log('tgs', 'Tab strip context menu not available on this browser:', reason);
-        }
-        else {
-          gsUtils.warning('tgs', 'Could not create the tab strip context menu:', reason);
-        }
-      }
-      if (tabStripMenuAvailable) {
-        for (const item of otherTabStripItems) {
-          lastCreate = createContextMenuItem(item);
-        }
-      }
+	  
+      // const [firstTabStripItem, ...otherTabStripItems] = tabStripItems;
+      // let tabStripMenuAvailable = true;
+      // let lastCreate;
+      // try {
+        // lastCreate = createContextMenuItem(firstTabStripItem);
+      // }
+      // catch (error) {
+        // tabStripMenuAvailable = false;
+        // const reason = String(error?.message ?? error);
+        // if (reason.includes("property 'contexts'")) {
+          // gsUtils.log('tgs', 'Tab strip context menu not available on this browser:', reason);
+        // }
+        // else {
+          // gsUtils.warning('tgs', 'Could not create the tab strip context menu:', reason);
+        // }
+      // }
+      // if (tabStripMenuAvailable) {
+        // for (const item of otherTabStripItems) {
+          // lastCreate = createContextMenuItem(item);
+        // }
+      // }
 
       // enable the page item above if the tab in front of the user is in a named group (#133)
       // Debounced/fire-and-forget (own internal setTimeout), so it doesn't need to be
