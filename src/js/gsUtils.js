@@ -1034,6 +1034,38 @@ export const gsUtils = {
     }
   },
 
+  // Visible title of the suspended page. Both targets get textContent: the title comes
+  // from the url hash, and suspended.html is web-accessible, so any web page can choose
+  // it. Writing it as HTML is what turned a title containing `<` into markup; the old
+  // htmlEncode() workaround then showed a literal `&lt;` instead. Returns the top bar
+  // element so the caller can attach its mousedown handler.
+  setSuspendedPageTitle(doc, title) {
+    const text = title ?? '';
+    doc.title = text;
+    const titleEl = doc.getElementById('gsTitle');
+    if (titleEl) titleEl.textContent = text;
+    const topBarTitleEl = doc.getElementById('gsTopBarTitle');
+    if (topBarTitleEl) topBarTitleEl.textContent = text;
+    return topBarTitleEl ?? null;
+  },
+
+  // "Why was this page suspended" line. The reason is a locale string, and locale
+  // strings are data (they arrive from Crowdin), so it is written as text. The element
+  // is created on first use, exactly as suspended.js used to do it.
+  setSuspendedPageReason(doc, reason) {
+    let reasonEl = doc.getElementById('reasonMsg');
+    if (!reasonEl) {
+      reasonEl = doc.createElement('div');
+      reasonEl.setAttribute('id', 'reasonMsg');
+      reasonEl.classList.add('reasonMsg');
+      const containerEl = doc.getElementById('suspendedMsg-instr');
+      if (!containerEl) return null;
+      containerEl.insertBefore(reasonEl, containerEl.firstChild);
+    }
+    reasonEl.textContent = reason ?? '';
+    return reasonEl;
+  },
+
   setPageTheme(win, theme) {
     if (win.document?.body) {
       // Set theme
@@ -1159,6 +1191,29 @@ export const gsUtils = {
       rootUrlStr = scheme + rootUrlStr;
     }
     return rootUrlStr;
+  },
+
+  // The address shown in the suspended page's top bar: scheme, query and a trailing
+  // slash are dropped so a long url still reads as a host and path. Applied with
+  // textContent at the single call site, never as HTML: the input comes from the url
+  // hash, which any web page can set (suspended.html is web-accessible).
+  cleanUrlForDisplay(urlStr) {
+    let cleaned = String(urlStr ?? '');
+    // remove scheme
+    if (cleaned.indexOf('//') > 0) {
+      cleaned = cleaned.substring(cleaned.indexOf('//') + 2);
+    }
+    // remove query string
+    let match = cleaned.match(/\/?[?#]+/);
+    if (match) {
+      cleaned = cleaned.substring(0, match.index);
+    }
+    // remove trailing slash
+    match = cleaned.match(/\/$/);
+    if (match) {
+      cleaned = cleaned.substring(0, match.index);
+    }
+    return cleaned;
   },
 
   getHashVariable(key, urlStr) {
