@@ -39,9 +39,14 @@ export const gsPrecapture = (function() {
   }
 
   async function isEnabled() {
-    if (!await gsStorage.getOption(gsStorage.SCREEN_CAPTURE_PRECAPTURE)) return false;
-    if (await gsStorage.getOption(gsStorage.SCREEN_CAPTURE) === '0') return false;
-    if (await gsStorage.getOption(gsStorage.SCREEN_CAPTURE_METHOD) === 'renderer') return false;
+    const [precapture, mode, method] = await Promise.all([
+      gsStorage.getOption(gsStorage.SCREEN_CAPTURE_PRECAPTURE),
+      gsStorage.getOption(gsStorage.SCREEN_CAPTURE),
+      gsStorage.getOption(gsStorage.SCREEN_CAPTURE_METHOD),
+    ]);
+    if (!precapture) return false;
+    if (mode === '0') return false;
+    if (method === 'renderer') return false;
     // The option syncs between devices but the permission does not
     return chrome.permissions.contains(ALL_URLS);
   }

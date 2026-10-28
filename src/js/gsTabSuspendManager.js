@@ -160,8 +160,11 @@ export const gsTabSuspendManager = (function() {
     // Although if the tab is still loading then pause and scroll pos should
     // not be set?
     // Do not bypass loading state if screen capture is required
-    let screenCaptureMode = await gsStorage.getOption(gsStorage.SCREEN_CAPTURE);
-    const screenCaptureMethod = await gsStorage.getOption(gsStorage.SCREEN_CAPTURE_METHOD);
+    const [initialScreenCaptureMode, screenCaptureMethod] = await Promise.all([
+      gsStorage.getOption(gsStorage.SCREEN_CAPTURE),
+      gsStorage.getOption(gsStorage.SCREEN_CAPTURE_METHOD),
+    ]);
+    let screenCaptureMode = initialScreenCaptureMode;
     if (tab.status === 'loading') {
       const savedTabInfo = await gsIndexedDb.fetchTabInfo(tab.url);
       if (screenCaptureMode === '0' && savedTabInfo) {
@@ -529,10 +532,18 @@ async function executeTabSuspension(tab, suspendedUrl, isStillCurrent = () => tr
       }
     }
     if (forceLevel >= 3) {
-      if (await gsStorage.getOption(gsStorage.IGNORE_WHEN_OFFLINE) && !navigator.onLine) {
+      // All four reads are independent. isCharging() is a chrome.storage.session read,
+      // and reading it twice here made every automatic suspension pay for it twice.
+      const [ignoreOffline, ignoreCharging, initialSuspendTime, charging] = await Promise.all([
+        gsStorage.getOption(gsStorage.IGNORE_WHEN_OFFLINE),
+        gsStorage.getOption(gsStorage.IGNORE_WHEN_CHARGING),
+        gsStorage.getOption(gsStorage.SUSPEND_TIME),
+        tgs.isCharging(),
+      ]);
+      if (ignoreOffline && !navigator.onLine) {
         return false;
       }
-      if (await gsStorage.getOption(gsStorage.IGNORE_WHEN_CHARGING) && await tgs.isCharging()) {
+      if (ignoreCharging && charging) {
         return false;
       }
       // Mirrors the effective-timeout logic in tgs.js's resetAutoSuspendTimerForTab():
@@ -540,8 +551,8 @@ async function executeTabSuspension(tab, suspendedUrl, isStillCurrent = () => tr
       // timeout is "Never" ('0') — the UI hides the normal-timeout-only options in
       // that state but doesn't clear their stored value, so a stale '0' here must not
       // reject a suspension that was legitimately scheduled off the battery timeout.
-      let effectiveSuspendTime = await gsStorage.getOption(gsStorage.SUSPEND_TIME);
-      if ((await tgs.isCharging()) === false) {
+      let effectiveSuspendTime = initialSuspendTime;
+      if (charging === false) {
         const suspendTimeOnBattery = await gsStorage.getOption(gsStorage.SUSPEND_TIME_ON_BATTERY);
         if (suspendTimeOnBattery !== '') {
           effectiveSuspendTime = suspendTimeOnBattery;
@@ -640,8 +651,10 @@ async function executeTabSuspension(tab, suspendedUrl, isStillCurrent = () => tr
   }
 
   async function requestGeneratePreviewImage(tab, previewToken) {
-    const screenCaptureMode   = await gsStorage.getOption(gsStorage.SCREEN_CAPTURE);
-    const forceScreenCapture  = await gsStorage.getOption(gsStorage.SCREEN_CAPTURE_FORCE);
+    const [screenCaptureMode, forceScreenCapture] = await Promise.all([
+      gsStorage.getOption(gsStorage.SCREEN_CAPTURE),
+      gsStorage.getOption(gsStorage.SCREEN_CAPTURE_FORCE),
+    ]);
     const screenCaptureLib = 'js/snapdom.js';
     gsUtils.log(tab.id, QUEUE_ID, `Injecting ${screenCaptureLib} into content script`,);
 
@@ -702,9 +715,21 @@ async function executeTabSuspension(tab, suspendedUrl, isStillCurrent = () => tr
             });
           };
 
+          // Reading the whole canvas back costs width * height * 4 bytes — a long page
+          // at scale 1 reaches tens of MB — only to answer "is anything drawn". A 32x32
+          // downscale samples the whole page instead of one corner, and reading those
+          // 4 KB back is cheap even for a 20,000px page.
+          const SAMPLE_SIZE = 32;
           const isCanvasVisible = canvas => {
-            const ctx       = canvas.getContext('2d');
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            if (!canvas.width || !canvas.height) {
+              return false;
+            }
+            const sample = document.createElement('canvas');
+            sample.width  = SAMPLE_SIZE;
+            sample.height = SAMPLE_SIZE;
+            const ctx = sample.getContext('2d');
+            ctx.drawImage(canvas, 0, 0, SAMPLE_SIZE, SAMPLE_SIZE);
+            const imageData = ctx.getImageData(0, 0, SAMPLE_SIZE, SAMPLE_SIZE);
             for (let i = 0; i < imageData.data.length; i += 4) {
               const isTransparent = imageData.data[i + 3] === 0;
               const isWhite =

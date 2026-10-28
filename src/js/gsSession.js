@@ -123,19 +123,29 @@ export const gsSession = (function() {
     }
   }
 
+  // The id lives in chrome.storage.session and cannot change while this context lives
+  // (a browser restart gives a new context). history.html calls this once per rendered
+  // session, so without the memo opening a long history costs one storage read per row.
+  let _memoSessionId = null;
+
   async function getSessionId() {
+    if (_memoSessionId) return _memoSessionId;
     let gsSessionId = await gsStorage.getStorageJSON('session', 'gsSessionId');
     if (!gsSessionId) {
       gsSessionId = Date.now() + '';
       await gsStorage.saveStorage('session', 'gsSessionId', gsSessionId);
       gsUtils.log('gsSession', 'gsSessionId', gsSessionId);
     }
+    _memoSessionId = gsSessionId;
     return gsSessionId;
   }
 
   async function buildCurrentSession() {
-    const currentWindows    = await gsChrome.windowsGetAll();
-    const currentTabGroups  = await gsChrome.tabGroupsGetAll();
+    const [currentWindows, currentTabGroups, sessionId] = await Promise.all([
+      gsChrome.windowsGetAll(),
+      gsChrome.tabGroupsGetAll(),
+      getSessionId(),
+    ]);
     const tabsExist         = currentWindows.some( window => window.tabs && window.tabs.length );
     if (!tabsExist) {
       gsUtils.warning( 'gsSession', 'Failed to build current session. Could not find any tabs.' );
@@ -143,7 +153,7 @@ export const gsSession = (function() {
     }
     // gsUtils.log('gsSession', 'buildCurrentSession currentTabGroups', currentTabGroups);
     return {
-      sessionId: await getSessionId(),
+      sessionId,
       windows: currentWindows,
       tabGroups: currentTabGroups,
       date: new Date().toISOString(),

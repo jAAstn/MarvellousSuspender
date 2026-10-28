@@ -101,8 +101,11 @@ export const gsTabDiscardManager = (function() {
       requeue();
       return;
     }
-    if (await tgs.isCurrentActiveTab(tab)) {
-      const discardInPlaceOfSuspend = await gsStorage.getOption(gsStorage.DISCARD_IN_PLACE_OF_SUSPEND);
+    const [isActive, discardInPlaceOfSuspend] = await Promise.all([
+      tgs.isCurrentActiveTab(tab),
+      gsStorage.getOption(gsStorage.DISCARD_IN_PLACE_OF_SUSPEND),
+    ]);
+    if (isActive) {
       if (!discardInPlaceOfSuspend) {
         gsUtils.log(tab.id, QUEUE_ID, 'Tab is active. Aborting discard.');
         resolve(false);

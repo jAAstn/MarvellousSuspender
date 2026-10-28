@@ -61,10 +61,12 @@ export const gsFavicon = (() => {
       // tab can still carry the opposite variant after gsLegacyMascot was toggled, and
       // neither should ever be fingerprinted as a real favicon.
       ...gsMascot.resolveBothUrls('img/ic_suspendy_16x16.webp'),
-      await gsMascot.resolveUrl('img/chromeDefaultFavicon.webp'),
-      await gsMascot.resolveUrl('img/chromeDefaultFaviconSml.webp'),
-      await gsMascot.resolveUrl('img/chromeDevDefaultFavicon.webp'),
-      await gsMascot.resolveUrl('img/chromeDevDefaultFaviconSml.webp'),
+      ...(await Promise.all([
+        gsMascot.resolveUrl('img/chromeDefaultFavicon.webp'),
+        gsMascot.resolveUrl('img/chromeDefaultFaviconSml.webp'),
+        gsMascot.resolveUrl('img/chromeDevDefaultFavicon.webp'),
+        gsMascot.resolveUrl('img/chromeDevDefaultFaviconSml.webp'),
+      ])),
     ];
 
     const faviconPromises = [];
@@ -109,8 +111,12 @@ export const gsFavicon = (() => {
     try {
       faviconMeta = await gsUtils.executeWithRetries(buildFaviconMeta, [url], 4, 0);
       const url2  = `${url}Transparent`;
-      _defaultFaviconFingerprintById[url]   = await createImageFingerprint(faviconMeta.normalisedDataUrl);
-      _defaultFaviconFingerprintById[url2]  = await createImageFingerprint(faviconMeta.transparentDataUrl);
+      const [normalisedFingerprint, transparentFingerprint] = await Promise.all([
+        createImageFingerprint(faviconMeta.normalisedDataUrl),
+        createImageFingerprint(faviconMeta.transparentDataUrl),
+      ]);
+      _defaultFaviconFingerprintById[url]   = normalisedFingerprint;
+      _defaultFaviconFingerprintById[url2]  = transparentFingerprint;
       return faviconMeta;
     }
     catch (error) {
@@ -122,11 +128,12 @@ export const gsFavicon = (() => {
    * @param   { string }  url
    * @returns { string }
    */
+  const _faviconBaseUrl = chrome.runtime.getURL('/_favicon/');
   function getChromeFavIconUrl(url) {
     // gsUtils.log( 'gsFavicon', 'getChromeFavIconUrl', url );
     // https://developer.chrome.com/docs/extensions/how-to/ui/favicons
     // chrome-extension://EXTENSION_ID/_favicon/?pageUrl=EXAMPLE_URL&size=FAV_SIZE
-    const icon_url = new URL(chrome.runtime.getURL('/_favicon/'));
+    const icon_url = new URL(_faviconBaseUrl);
     icon_url.searchParams.set('pageUrl', url);
     icon_url.searchParams.set('size', '32');
     return icon_url.toString();

@@ -874,23 +874,33 @@ export const tgs = (function() {
   async function resetAutoSuspendTimerForTab(tab) {
     await clearAutoSuspendTimerForTabId(tab.id);
 
-    let suspendTime = await gsStorage.getOption(gsStorage.SUSPEND_TIME);
+    // The two lookups and the two checks are independent of each other; awaiting them
+    // one by one made every timer reset pay four sequential IPC round trips.
+    const [initialSuspendTime, charging] = await Promise.all([
+      gsStorage.getOption(gsStorage.SUSPEND_TIME),
+      isCharging(),
+    ]);
+    let suspendTime = initialSuspendTime;
     // A battery-specific timeout (#252) only kicks in when one is actually set and we
     // know for certain we're running unplugged — isCharging() returns undefined (not
     // false) both when navigator.getBattery is unavailable in this MV3 service worker
     // and before its initial promise resolves, so an explicit === false check is
     // required here; treating "unknown" as "unplugged" would apply the override while
     // still on AC.
-    if ((await isCharging()) === false) {
+    if (charging === false) {
       const suspendTimeOnBattery = await gsStorage.getOption(gsStorage.SUSPEND_TIME_ON_BATTERY);
       if (suspendTimeOnBattery !== '') {
         suspendTime = suspendTimeOnBattery;
       }
     }
     // [FORK] per-URL custom timeout (Options → "Custom auto-suspend times") overrides the global one
-    suspendTime = (await gsCustomSuspend.resolveSuspendTime(tab.url, suspendTime)).minutes;
+    const [resolvedSuspend, isProtectedActive] = await Promise.all([
+      gsCustomSuspend.resolveSuspendTime(tab.url, suspendTime),
+      gsUtils.isProtectedActiveTab(tab),
+    ]);
+    suspendTime = resolvedSuspend.minutes;
     if (
-      (await gsUtils.isProtectedActiveTab(tab)) ||
+      isProtectedActive ||
       isNaN(suspendTime) ||
       suspendTime <= 0
     ) {
@@ -922,10 +932,14 @@ export const tgs = (function() {
       }
     });
     chrome.tabs.query({}, async (tabs) => {
-      for (const tab of tabs) {
-        if (gsUtils.isNormalTab(tab)) {
-          await resetAutoSuspendTimerForTab(tab);
-        }
+      // Bounded batches: each reset costs several storage reads and an alarm write, and
+      // a restored profile can have hundreds of tabs. Ten at a time keeps the settings
+      // reads and the alarm calls from queueing behind each other one tab at a time.
+      const normalTabs = tabs.filter((tab) => gsUtils.isNormalTab(tab));
+      for (let i = 0; i < normalTabs.length; i += 10) {
+        await Promise.allSettled(
+          normalTabs.slice(i, i + 10).map((tab) => resetAutoSuspendTimerForTab(tab)),
+        );
       }
     });
   }
@@ -1857,8 +1871,12 @@ export const tgs = (function() {
     }
     //check never suspend
     //should come after whitelist check as it causes popup to show the whitelisting option
-    let effectiveSuspendTime = await gsStorage.getOption(gsStorage.SUSPEND_TIME);
-    if ((await isCharging()) === false) {
+    const [initialSuspendTime, chargingNow] = await Promise.all([
+      gsStorage.getOption(gsStorage.SUSPEND_TIME),
+      isCharging(),
+    ]);
+    let effectiveSuspendTime = initialSuspendTime;
+    if (chargingNow === false) {
       const suspendTimeOnBattery = await gsStorage.getOption(gsStorage.SUSPEND_TIME_ON_BATTERY);
       if (suspendTimeOnBattery !== '') {
         effectiveSuspendTime = suspendTimeOnBattery;
@@ -1876,43 +1894,55 @@ export const tgs = (function() {
           callback(contentScriptStatus);
           return;
         }
+        // The option reads and the protection checks are independent; run them together
+        // and decide in the same order afterwards, so the reported status is unchanged.
+        const [ignoreCharging, ignoreOffline, isPinned, isAudible, isAppWindow, isGrouped, isTabGroup, isActive] = await Promise.all([
+          gsStorage.getOption(gsStorage.IGNORE_WHEN_CHARGING),
+          gsStorage.getOption(gsStorage.IGNORE_WHEN_OFFLINE),
+          gsUtils.isProtectedPinnedTab(tab),
+          gsUtils.isProtectedAudibleTab(tab),
+          gsUtils.isProtectedAppWindowTab(tab),
+          gsUtils.isProtectedGroupedTab(tab),
+          gsUtils.isProtectedTabGroupTab(tab),
+          gsUtils.isProtectedActiveTab(tab),
+        ]);
         //check running on battery
-        if ( await gsStorage.getOption(gsStorage.IGNORE_WHEN_CHARGING) && await isCharging() ) {
+        if ( ignoreCharging && chargingNow ) {
           callback(gsUtils.STATUS_CHARGING);
           return;
         }
         //check internet connectivity
-        if ( await gsStorage.getOption(gsStorage.IGNORE_WHEN_OFFLINE) && !navigator.onLine ) {
+        if ( ignoreOffline && !navigator.onLine ) {
           callback(gsUtils.STATUS_NOCONNECTIVITY);
           return;
         }
         //check pinned tab
-        if (await gsUtils.isProtectedPinnedTab(tab)) {
+        if (isPinned) {
           callback(gsUtils.STATUS_PINNED);
           return;
         }
         //check audible tab
-        if (await gsUtils.isProtectedAudibleTab(tab)) {
+        if (isAudible) {
           callback(gsUtils.STATUS_AUDIBLE);
           return;
         }
         //check app-mode window tab (#154)
-        if (await gsUtils.isProtectedAppWindowTab(tab)) {
+        if (isAppWindow) {
           callback(gsUtils.STATUS_APP_WINDOW);
           return;
         }
         //check tab in a tab group (#133)
-        if (await gsUtils.isProtectedGroupedTab(tab)) {
+        if (isGrouped) {
           callback(gsUtils.STATUS_GROUPED_TAB);
           return;
         }
         //check never-suspend tab group (#133)
-        if (await gsUtils.isProtectedTabGroupTab(tab)) {
+        if (isTabGroup) {
           callback(gsUtils.STATUS_TAB_GROUP);
           return;
         }
         //check active
-        if (await gsUtils.isProtectedActiveTab(tab)) {
+        if (isActive) {
           callback(gsUtils.STATUS_ACTIVE);
           return;
         }
