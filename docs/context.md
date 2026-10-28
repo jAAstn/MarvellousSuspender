@@ -18,11 +18,13 @@ entfernen, sondern dessen tägliche Updates weiter mitzunehmen.
 | Upstream | `https://github.com/gioxx/MarvellousSuspender.git` (Remote `upstream`) |
 | Fork | `https://github.com/jAAstn/MarvellousSuspender.git` (Remote `origin`) |
 | `master` | 1:1 Spiegel von `upstream/master` |
-| `fable` | Arbeitsbranch mit Fork-Änderungen (basiert auf `master`) |
-| `Eigen` | Altstand, obsolet nach Merge |
+| `testing-bevor-merging-zu-eigen-+-mast` | **aktiver Arbeitsbranch**, Manifest **9.1.0.1** |
+| `eigen-+-mast` | älterer Arbeitsstand, nur noch als Referenz |
 
-Upstream-Basis der aktuellen Fork-Änderungen: Commit `25574c39` (18.09.2026, „Merge #490 never-suspend-tab-group“),
-Manifest-Version **9.0.3**, Upstream-`CHANGELOG.md` hat bereits einen `[Unreleased]`-Block (→ nächste Version 9.0.4 / 9.1.0).
+Upstream-Basis der aktuellen Fork-Änderungen ist die **9.1.0-Release-Linie**
+(`upstream/release/9.1.0`, Commit `7aeb8e45` „chore(release): prepare 9.1.0“); darauf der
+Manifest-Bump `860bb1fe` auf 9.1.0.1. `upstream/master` steht dagegen noch auf Manifest 9.0.3
+(`3c8bc121`) – ein Merge von `master` bringt also nicht den neuesten Upstream-Stand.
 
 ## Upstream-Konventionen, die wir übernehmen
 
@@ -52,8 +54,9 @@ Manifest-Version **9.0.3**, Upstream-`CHANGELOG.md` hat bereits einen `[Unreleas
 ## Umgebung
 
 - Windows 11, Git Bash. Node + npm vorhanden (`node_modules` installiert).
-- Kein Chrome auf dem Entwicklungsrechner für automatisierte Browser-Tests → manuelle Tests nach
-  [TESTING.md](TESTING.md).
+- Test-Suite: Vitest in Node (`npm test`), Chrome-API-Stub unter `tests/setup/chrome-stub.js`.
+- Kein automatisierter Browser-Lauf auf dem Entwicklungsrechner; der Handtest im
+  Unpacked-Profil nach [TESTING.md](TESTING.md) steht für UI-Änderungen weiterhin aus.
 
 ## Dokumente in `docs/`
 
@@ -68,4 +71,5 @@ Manifest-Version **9.0.3**, Upstream-`CHANGELOG.md` hat bereits einen `[Unreleas
 | [TESTING.md](TESTING.md) | Manuelle Testfälle + Node-Smoke-Test |
 | [DECISIONS.md](DECISIONS.md) | Architektur-Entscheidungen (ADR-Stil) |
 | [performance-audit.md](performance-audit.md) | Optimierungspotenzial (Upstream + Fork) |
+| [ISSUE-innerhtml.md](ISSUE-innerhtml.md) | verbleibende `innerHTML`-Datenpfade, Risiko + Priorität |
 | [roadmap.md](roadmap.md) | Ideen / offene Punkte |

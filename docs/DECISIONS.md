@@ -5,7 +5,38 @@ Kurzformat: Kontext → Entscheidung → Konsequenzen. Neue Einträge oben anfü
 
 ---
 
-## ADR-007 · Kein Test-Runner, sondern Node-Smoke-Test + manuelle Checkliste *(CI-Teil ersetzt, siehe Update unten)*
+## ADR-013 · Echte Unit-Suite mit Vitest statt Smoke-Test
+
+**Kontext:** ADR-007 hatte bewusst keinen Test-Runner eingeführt, um `package.json` und Configs
+nicht mit Upstream-Merges kollidieren zu lassen. Inzwischen hängen an derselben Codebasis
+Suspended-URL-Format, Queue, Session-Restore und Storage-Cache; ein `eval`-Smoke-Test in der Doku
+prüfte davon nur einen Bruchteil und war nicht CI-fähig. `AGENTS.md` verlangt für jeden Fix und
+jedes Feature einen Test.
+**Entscheidung:** Vitest 5 als Dev-Dependency, `vitest.config.mjs` mit `environment: 'node'`,
+Setup `tests/setup/chrome-stub.js`, Tests unter `tests/`. Der Stub ist explizit und wirft bei
+nicht gestubbten APIs laut, statt still No-ops zu liefern. E2E bleibt mit eigener Config getrennt.
+**Konsequenzen:** 31 Dateien / 514 Tests, in ~2 s lauffähig. Neue Fork-Logik wird testbar
+zugeschnitten (reine Helfer statt DOM-in-IIFE), so wie `gsUtils.cleanUrlForDisplay()` für die
+URL-Anzeige. Konfliktfläche mit Upstream ist gering, weil nur `package.json` und neue Dateien
+betroffen sind. Offen: eine bekannte Numeric-0-Erwartung bleibt rot, bis die Upstream-Semantik
+entschieden ist.
+
+## ADR-012 · Settings-Cache pro Kontext, parallele Reads statt Serialisierung
+
+**Kontext:** `gsStorage.getOption()` las bei jedem Aufruf das komplette `gsSettings`-Objekt aus
+`chrome.storage.local` und klonte es; `calculateTabStatus()` und der Timer-Reset machten das
+zweistellig oft pro Tab-Wechsel. Zugleich waren unabhängige Prüfungen (offline, charging,
+Whitelist, pinned …) bewusst sequenziell `await`-ed, obwohl sie nichts voneinander brauchen.
+**Entscheidung:** Ein pro Kontext geteiltes `settingsPromise` cacht den geladenen Zustand;
+`chrome.storage.onChanged` (Key `gsSettings`) invalidiert ihn. `getOption()` liest direkt aus dem
+Cache und klont nur echte Objektwerte. `getSettings()` behält seinen Klon für Aufrufer, die
+mutieren. Unabhängige Options-/Schutz-Reads laufen per `Promise.all`, die Auswertungsreihenfolge
+von `calculateTabStatus()` und damit der gemeldete Status bleiben unverändert.
+**Konsequenzen:** Ein Storage-Read pro Kontext und Änderung statt pro Option. Der Cache ist
+bewusst nicht kontextübergreifend; Chrome bleibt die Quelle der Wahrheit. Ein Write-Lock
+(`createAsyncLock`) schützt weiterhin Read-Modify-Write auf demselben Objekt.
+
+## ADR-007 · Kein Test-Runner, sondern Node-Smoke-Test + manuelle Checkliste *(durch ADR-013 ersetzt)*
 
 **Kontext:** Upstream hat keine Tests. Ein Jest/Vitest-Setup würde `package.json`, Config-Dateien und evtl.
 ESLint-Config berühren → Merge-Konflikte bei jedem Upstream-Update.
@@ -13,10 +44,10 @@ ESLint-Config berühren → Merge-Konflikte bei jedem Upstream-Update.
 Browser-Checkliste. Keine Test-Dateien im Repo.
 **Konsequenzen:** Kein CI-Schutz; Disziplin nötig, die Checkliste nach Merges abzuarbeiten.
 **Update (19.09.2026):** Der „kein CI“-Teil ist obsolet — der Lint-Gate-Workflow
-(`.github/workflows/ci.yml`, Baseline-Mechanik, Katalog §12) sichert jetzt „keine neuen
-Lint-Verstöße“ auf jedem Push. Der „kein Test-Runner“-Teil bleibt: Unit-Tests für reine Logik
-(Queue, Lock, URL-Helfer) bleiben Roadmap-Thema und sollen ohne Konfliktfläche mit
-Upstream-Config bleiben.
+(`.github/workflows/ci.yml`, Baseline-Mechanik, Katalog §12) sichert „keine neuen
+Lint-Verstöße“ auf jedem Push.
+**Update (28.10.2026):** Auch der „kein Test-Runner“-Teil ist überholt; ersetzt durch
+**ADR-013** (Vitest-Suite). Dieser Eintrag bleibt zur Historie stehen.
 
 ## ADR-008 · Chromium-Fähigkeitsprobe statt User-Agent-Sniffing
 
@@ -32,9 +63,14 @@ registriert ein unsichtbares Wegwerf-Item mit dem neuen Context-Typ und wertet d
 Gibt es die API nicht, wird die Sektion übersprungen; gibt es sie, registriert sie — unabhängig
 davon, wann das UI-Rendering im jeweiligen Browser shipped.
 **Konsequenzen:** Kein Versions-Management, funktioniert auf jeder Engine, self-healing bei
-Browser-Updates (`onInstalled` feuert erneut). Kosten: ein IPC-Round-Trip pro Menü-Rebuild (offen
-zur Memoisierung, siehe Roadmap 🟡) und ein unsichtbares Probe-Item für einen Tick. Das Muster ist
-auf andere „gibt es das Feature schon?“-Fragen übertragbar.
+Browser-Updates (`onInstalled` feuert erneut). Kosten: ein IPC-Round-Trip pro Menü-Rebuild und ein
+unsichtbares Probe-Item für einen Tick.
+
+**Update (28.10.2026):** Die Probe ist **nicht mehr im Code**. Commit `f95d6b11` hat das
+Tab-Strip-Menü mit einem leichteren Guard wiederhergestellt: Nur der erste `tab_*`-Eintrag wird
+in `try/catch` registriert; scheitert er, wird die Sektion übersprungen. Das deckt den einzigen
+realistischen Fehlerfall (fehlender `tab`-Context) ohne zusätzlichen IPC-Round-Trip. Der ADR
+bleibt als Entscheidungsgeschichte stehen.
 
 ## ADR-009 · Message-Listener: synchron `return true` + detached IIFE
 

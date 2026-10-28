@@ -6,14 +6,86 @@
 > mitaufgeführt (Details: [PERSOENLICHE_AENDERUNGEN.md](PERSOENLICHE_AENDERUNGEN.md)).
 >
 > **Bezugspunkte:**
-> - Upstream-Basis: `gioxx/MarvellousSuspender` v9.0.3, Commit `25574c39` (18.09.2026)
-> - Arbeitsbranch: `Eigen` (Merge-Ziel `fable`/`master` siehe [UPSTREAM_UPDATE.md](UPSTREAM_UPDATE.md))
+> - Upstream-Basis: `upstream/release/9.1.0` (Commit `7aeb8e45`), Manifest 9.0.3 → 9.1.0 → **9.1.0.1**
+>   (`860bb1fe`)
+> - Arbeitsbranch: `testing-bevor-merging-zu-eigen-+-mast` (Merge-Ziel `master`, siehe
+>   [UPSTREAM_UPDATE.md](UPSTREAM_UPDATE.md))
 > - Upstream-`CHANGELOG.md`: unsere Einträge stehen dort zusätzlich gespiegelt am **Dateiende** unter
->   „Fork-Änderungen (jAAstn/MarvellousSuspender)“ — Sektionen (3)–(5) —, nicht im Upstream-`[Unreleased]`.
+>   „Fork-Änderungen (jAAstn/MarvellousSuspender)“, nicht im Upstream-`[Unreleased]`.
 >
-> **Commit-Bezug:** Commits `65ae5988` (Tab-Strip-Probe) und `273b44cb` (externer Listener) existieren bereits;
-> die restlichen Änderungen dieser Session (Executor-Umbauten, CI, Baseline, Doku, Marker-Nachzug) sind mit
-> den Commits „Executor-Refactor“, „CI + Lint-Baseline“ und „docs: Session-Doku + changelog_eigen“ eingecheckt.
+> **Commit-Bezug:** Die älteren Sektionen (3)–(8) verweisen auf Commits vom 19.09.2026. Die Sektionen
+> (9)–(10) vom 28.10.2026 tragen ihre Hashes direkt; Sektion (11) wird mit den Code- und Doku-Commits
+> dieser Runde abgeschlossen.
+
+---
+
+## [Fork] 2026-10-28 (11) — URL-Anzeige, Session-Titel, Issue, Doku-Refresh
+
+### Geändert
+- **`suspended.js setUrl()`** schreibt die gekürzte Original-URL mit `textContent` statt `innerHTML`.
+  Die Kürzung ist als `gsUtils.cleanUrlForDisplay()` herausgezogen und mit 15 Fällen in
+  `tests/gsUtils.cleanUrl.test.js` abgedeckt (Scheme, Query, Fragment, Port, Trailing Slash, leere
+  Eingabe, Markup-Zeichen bleiben Text). Schutz gegen Markup-Injection aus dem frei wählbaren
+  `uri`-Hash; siehe [ISSUE-innerhtml.md](ISSUE-innerhtml.md).
+- **`suspended.js` Titel-Anzeige** läuft über `gsUtils.setSuspendedPageTitle()` und
+  `textContent`; der `htmlEncode`-Block in `initTab()` ist entfernt. Ein Titel mit `<` bleibt
+  literal `<` (nicht `&lt;`). Test: `tests/gsUtils.suspendedTitle.test.js` (4 Fälle).
+- **`historyItems.js` Session-Titel** baut den Namen jetzt als Textknoten und die Zählerzeile
+  als echtes `<small>`-Element, statt beides als Template-String durch `innerHTML` zu schicken.
+  Das geschützte Leerzeichen ist ein echtes `\u00A0`, nicht `&nbsp;`. Test:
+  `tests/historyItems.sessionTitle.test.js` mit minimalem DOM-Double (5 Fälle: Plural,
+  Singular, Markup im Namen, Entity bleibt Text, Label ohne Markup).
+- **`suspended.js setReason()`** schreibt den Suspend-Grund (Locale-String aus Crowdin) über
+  `gsUtils.setSuspendedPageReason()` und `textContent`. Test:
+  `tests/gsUtils.suspendedReason.test.js` (4 Fälle).
+- **`historyItems.createEl()`** setzt seinen Text per `textContent` statt
+  `innerHTML = gsUtils.htmlEncode(text)`; damit ist der letzte encodierende Pfad der
+  History-Seite weg. Der Session-Test lässt `innerHTML` werfen.
+- **`docs/ISSUE-innerhtml.md`** neu: verbleibende `innerHTML`-Datenpfade mit Datenquelle,
+  Erreichbarkeit, CSP-Wirkung, Priorität und Fix-Reihenfolge. Bewusst kein öffentliches GitHub-Issue
+  (`SECURITY.md`).
+- **`docs/` komplett auf 9.1.0.1 gezogen**: Architektur (SnapDOM, Precapture, IndexedDB v5,
+  Settings-Cache, Test-Suite), Hook-Zahlen (40 außerhalb des Moduls), Test-/Lint-Realität,
+  Branch- und Upstream-Basis, Roadmap und Performance-Audit.
+- **`.gitignore`-Konfliktmarker aufgelöst** (Fund bei der Doku-Prüfung): Der Merge hatte
+  `<<<<<<<`/`=======`/`>>>>>>>` hinterlassen, dadurch war `docs/` trotz `!/docs` ignoriert und
+  `docs/ISSUE-innerhtml.md` wäre nie versioniert worden. Jetzt: Upstream-Ignores übernommen,
+  `!/docs` am Dateiende aktiv.
+
+### Bekannt / akzeptiert
+- `npm test`: 513/514 grün; offen bleibt die dokumentierte Numeric-0-Oddity.
+- `npm run lint:ci` ist rot, weil einige neuere Testzeilen nicht in der 1.061er-Baseline stehen.
+- Kein Browser-Handtest in dieser Runde (kein Chrome auf dem Dev-Rechner).
+
+---
+
+## [Fork] 2026-10-28 (10) — Tab-Strip-Menü zurück, CHANGELOG entwirrt
+
+### Behoben
+- **Tab-Strip-Kontextmenü wieder aktiv** (`f95d6b11`): `d8ec67d3` hatte den Block auskommentiert,
+  weil der Stand davor doppelte `const tabStripItems`-/`let lastCreate`-Deklarationen enthielt und
+  nicht mehr parste. Wiederhergestellt wurde nicht der Kommentarblock, sondern die letzte valide
+  Struktur aus `97436179`: 16 Einträge, Erzeugung aktiv, Fortführung der `lastCreate`-Kette,
+  Chrome-<150-Guard per `try/catch` um den ersten Eintrag. Alle 12 Kontextmenü-Tests grün.
+- **`CHANGELOG.md`** (`f6434a7f`): Merge-Konfliktmarker entfernt. Zwei der drei eingeschobenen
+  Einträge („What’s new“-Modal, Debug-Reset) standen bereits unter 9.0.3 — Duplikate, keine neuen
+  Features. Der Missing-Tabs-Eintrag (#455) steht jetzt unter 9.1.0/`Added`; Performance und
+  Kontextmenü sind unter `Changed`/`Fixed` ergänzt.
+
+---
+
+## [Fork] 2026-10-28 (9) — Performance-Pass
+
+### Geändert
+- **`1cd52c41` – `perf: cut repeated settings reads on tab checks`** (14 Dateien): Caches für
+  Listen-Splits und Regex-Kompilierung, Hash-Parsing einmal statt viermal, `getOption()` ohne
+  `structuredClone` des ganzen Settings-Objekts, parallele unabhängige Options-/Schutz-Reads in
+  `tgs.js` und `gsTabSuspendManager.js`, `isCharging()` einmal pro Prüfung, 10er-Blöcke beim
+  Timer-Reset aller Tabs, SnapDOM-Canvas-Sampling 32×32, Session-ID/Device-ID/Favicon-Reads
+  memoisiert bzw. parallel, rAF-gebündelter Scroll-Handler in `options.js`.
+- **`tests/setup/chrome-stub.js`**: `chrome.history` ergänzt, damit die neuen History-Pfade
+  überhaupt importierbar sind.
+- Neue Tests: `tests/gsUtils.lookupCaches.test.js`, `tests/gsStorage.getOption.test.js`.
 
 ---
 
@@ -154,6 +226,10 @@
 
 | # | Commit | Inhalt |
 |---|---|---|
+| (9) | `1cd52c41` — *perf: cut repeated settings reads on tab checks* | 14 Dateien inkl. Tests/Stub |
+| (10) | `f95d6b11` — *fix(context-menu): restore the tab strip menu* | `tgs.js` |
+| (10) | `f6434a7f` — *docs(changelog): resolve 9.1.0 conflict and log this cycle* | `CHANGELOG.md` |
+| (11) | *(offen)* — URL-Anzeige + Issue + Doku-Refresh | `suspended.js`, `gsUtils.js`, neuer Test, `docs/` |
 | (4) | `65ae5988` — *Probe 'tab' context before registering menu* | `tgs.js` + `CHANGELOG.md` (vom Nutzer committet, Copilot-Co-Author) |
 | (5) | `273b44cb` — *fix(fork): reply reliably on the external message channel* | `background.js` |
 | (6) | *refactor(fork): replace async promise executors with settled-safe functions* | 8 Dateien in `src/js` (inkl. `[FORK]`-Marker-Nachzug für (4)/(5) — liegt in denselben Dateien) |
