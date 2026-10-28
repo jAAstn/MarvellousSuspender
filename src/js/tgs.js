@@ -2330,28 +2330,29 @@ export const tgs = (function() {
       // a browser that refuses it keeps the page menu built above and goes without.
       // Only the first item is tried that way: it tells whether the browser takes the
       // context at all. A throw on a later one is a defect in that item and is not caught.
-	  
-      // const [firstTabStripItem, ...otherTabStripItems] = tabStripItems;
-      // let tabStripMenuAvailable = true;
-      // let lastCreate;
-      // try {
-        // lastCreate = createContextMenuItem(firstTabStripItem);
-      // }
-      // catch (error) {
-        // tabStripMenuAvailable = false;
-        // const reason = String(error?.message ?? error);
-        // if (reason.includes("property 'contexts'")) {
-          // gsUtils.log('tgs', 'Tab strip context menu not available on this browser:', reason);
-        // }
-        // else {
-          // gsUtils.warning('tgs', 'Could not create the tab strip context menu:', reason);
-        // }
-      // }
-      // if (tabStripMenuAvailable) {
-        // for (const item of otherTabStripItems) {
-          // lastCreate = createContextMenuItem(item);
-        // }
-      // }
+      const [firstTabStripItem, ...otherTabStripItems] = tabStripItems;
+      let tabStripMenuAvailable = true;
+      try {
+        // Reuses the binding from the page item above: the build must resolve with the
+        // last create() issued across both menus, so the tab strip items continue that
+        // chain instead of starting a second one.
+        lastCreate = createContextMenuItem(firstTabStripItem);
+      }
+      catch (error) {
+        tabStripMenuAvailable = false;
+        const reason = String(error?.message ?? error);
+        if (reason.includes("property 'contexts'")) {
+          gsUtils.log('tgs', 'Tab strip context menu not available on this browser:', reason);
+        }
+        else {
+          gsUtils.warning('tgs', 'Could not create the tab strip context menu:', reason);
+        }
+      }
+      if (tabStripMenuAvailable) {
+        for (const item of otherTabStripItems) {
+          lastCreate = createContextMenuItem(item);
+        }
+      }
 
       // enable the page item above if the tab in front of the user is in a named group (#133)
       // Debounced/fire-and-forget (own internal setTimeout), so it doesn't need to be
