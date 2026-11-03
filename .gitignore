@@ -19,3 +19,4 @@ tmp
 
 # [FORK] fork documentation lives in /docs (upstream ignores it)
 !/docs
+/.cloud-attachments
