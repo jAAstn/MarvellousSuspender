@@ -75,6 +75,11 @@ export function createChromeStub() {
       getMessage: (key) => key,
       getUILanguage: () => 'en',
     },
+    history: {
+      // gsCustomSuspend removes the suspended page from the browser history right
+      // after suspending; the tests below only need the call to settle.
+      deleteUrl: async () => {},
+    },
     tabs: {
       onUpdated: event(),
       onCreated: event(),

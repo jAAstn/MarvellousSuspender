@@ -506,9 +506,6 @@ import  { tgs }                   from './tgs.js';
 
     // Back-to-top button
     const backToTopBtn = document.getElementById('backToTop');
-    window.addEventListener('scroll', () => {
-      backToTopBtn.classList.toggle('visible', window.scrollY > 200);
-    }, { passive: true });
     backToTopBtn.addEventListener('click', () => {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
@@ -534,7 +531,18 @@ import  { tgs }                   from './tgs.js';
       }
       navLinks.forEach(link => link.classList.toggle('active', link.getAttribute('href') === `#${activeId}`));
     }
-    window.addEventListener('scroll', updateActiveNavLink, { passive: true });
+    // One coalesced scroll handler for both the button and the nav: reading offsetTop for
+    // every section inside a raw scroll listener forces a layout on each scroll event.
+    let scrollTicking = false;
+    window.addEventListener('scroll', () => {
+      if (scrollTicking) return;
+      scrollTicking = true;
+      requestAnimationFrame(() => {
+        backToTopBtn.classList.toggle('visible', window.scrollY > 200);
+        updateActiveNavLink();
+        scrollTicking = false;
+      });
+    }, { passive: true });
     updateActiveNavLink();
 
     document.getElementById('testWhitelistBtn').onclick = async (event) => {

@@ -5,6 +5,21 @@ import  { gsUtils }               from './gsUtils.js';
 
 export const historyItems = (() => {
 
+  // The session name is user input (the save prompt) or a backup file name
+  // (gsBackup.importBackupJson), so it is text, never markup. Built as nodes rather
+  // than a template string: the name goes into a text node, and only the trusted
+  // counter line becomes a <small> element next to it. The non-breaking space is a
+  // real character, not `&nbsp;`, which textContent would show literally.
+  function createSessionTitle(sessionName, winCnt, winText, tabCnt, tabText) {
+    const sessionTitle = createEl('span', { class: 'sessionLink' });
+    sessionTitle.textContent = sessionName;
+    sessionTitle.appendChild(document.createTextNode('\u00A0 '));
+    const meta = document.createElement('small');
+    meta.textContent = `(${winCnt} ${winText}, ${tabCnt} ${tabText})`;
+    sessionTitle.appendChild(meta);
+    return sessionTitle;
+  }
+
   async function createSessionHtml(session, showLinks) {
     session.windows = session.windows || [];
 
@@ -19,7 +34,6 @@ export const historyItems = (() => {
 
     const sessionIcon   = createSvgIcon('square-plus', 'sessionIcon icon');
     const sessionDiv    = createEl('div',   { class: 'sessionContents' });
-    const sessionTitle  = createEl('span',  { class: 'sessionLink' });
 
     const sessionSave   = createEl('a',     { class: 'groupLink saveLink',      href: '#', }, gsUtils.getMessage('js_history_save'));
     const sessionDelete = createEl('a',     { class: 'groupLink deleteLink',    href: '#', }, gsUtils.getMessage('js_history_delete'));
@@ -29,7 +43,7 @@ export const historyItems = (() => {
     const sessionDIV    = createEl('div',   { class: 'sessionContainer', });
 
     const sessionName = (sessionType === 'saved') ? session.name : gsUtils.getHumanDate(session.date);
-    sessionTitle.innerHTML = `${sessionName} &nbsp; <small>(${winCnt} ${winText}, ${tabCnt} ${tabText})</small>`;
+    const sessionTitle = createSessionTitle(sessionName, winCnt, winText, tabCnt, tabText);
 
     sessionDIV.appendChild(sessionIcon);
     sessionDIV.appendChild(sessionTitle);
@@ -130,7 +144,10 @@ export const historyItems = (() => {
     var el = document.createElement(elType);
     attributes = attributes || {};
     el = setElAttributes(el, attributes);
-    el.innerHTML = gsUtils.htmlEncode(text || '');
+    // Text, not HTML: the label is a locale string or a tab/session value, and
+    // htmlEncode() + innerHTML turned `&` into a character reference round-trip and
+    // relied on the caller never passing markup.
+    el.textContent = text || '';
     return el;
   }
 

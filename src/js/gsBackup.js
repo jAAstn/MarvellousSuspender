@@ -50,11 +50,20 @@ export const gsBackup = (() => {
 
   // ─── device identity ───────────────────────────────────────────────────────
 
+  // Created once per profile and never changed afterwards, so one local-storage read per
+  // context is enough; every backup upload would otherwise read it again.
+  let _memoDeviceId = null;
+
   async function getOrCreateDeviceId() {
+    if (_memoDeviceId) return _memoDeviceId;
     const r = await chrome.storage.local.get(['gsBackupDeviceId']);
-    if (r.gsBackupDeviceId) return r.gsBackupDeviceId;
+    if (r.gsBackupDeviceId) {
+      _memoDeviceId = r.gsBackupDeviceId;
+      return _memoDeviceId;
+    }
     const id = crypto.randomUUID().replace(/-/g, '').slice(0, 8);
     await chrome.storage.local.set({ gsBackupDeviceId: id });
+    _memoDeviceId = id;
     return id;
   }
 

@@ -13,9 +13,11 @@ git remote -v
 ```
 
 Branches:
-- `master` – Spiegel von `upstream/master` (keine eigenen Commits, nur fast-forward)
-- `fable` – **Arbeitsbranch** = `master` + Fork-Commits
-- `Eigen` – älterer Stand, kann nach erfolgreichem Merge gelöscht werden
+- `master` – Spiegel von `upstream/master` (keine eigenen Commits, nur fast-forward).
+  Achtung: `upstream/master` steht derzeit auf Manifest 9.0.3; die neuere 9.1.0-Linie liegt auf
+  `upstream/release/9.1.0`.
+- `testing-bevor-merging-zu-eigen-+-mast` – **aktiver Arbeitsbranch** (Manifest 9.1.0.1)
+- `eigen-+-mast` – älterer Stand, nur noch Referenz
 
 ## Grundprinzip
 
@@ -39,7 +41,7 @@ git merge --ff-only upstream/master
 git push origin master        # optional
 
 # 3. In den Arbeitsbranch mergen
-git checkout fable
+git checkout testing-bevor-merging-zu-eigen-+-mast
 git merge master
 ```
 
@@ -68,7 +70,7 @@ git merge --continue
 ### Pflicht-Checks nach jedem Merge
 
 ```sh
-# a) Alle Hook-Stellen noch vorhanden? (Soll: 30 Treffer außerhalb gsCustomSuspend.js, Stand 09/2026)
+# a) Alle Hook-Stellen noch vorhanden? (Soll: 40 Treffer außerhalb gsCustomSuspend.js, Stand 10/2026)
 grep -rn "\[FORK\]" src --include=*.js --include=*.html --include=*.css | grep -v gsCustomSuspend.js | wc -l
 
 # b) Signaturen, die der Fork erweitert, noch kompatibel?
@@ -82,7 +84,10 @@ npx eslint --quiet src/js/gsCustomSuspend.js src/js/tgs.js src/js/gsTabSuspendMa
 # d) Locale-JSON valide?
 node -e "for (const l of ['en','de']) JSON.parse(require('fs').readFileSync('src/_locales/'+l+'/messages.json','utf8').replace(/^\uFEFF/,''))"
 
-# e) Manuelle Tests → docs/TESTING.md
+# e) Unit-Tests (Soll: 513/514; die Numeric-0-Oddity ist bekannt)
+npm test
+
+# f) Manuelle Tests → docs/TESTING.md
 ```
 
 ### Typische Upstream-Änderungen, die Aufmerksamkeit brauchen
@@ -95,6 +100,9 @@ node -e "for (const l of ['en','de']) JSON.parse(require('fs').readFileSync('src
 | `getHashVariable()` umschreibt | `getFaviconFromSuspendedUrl()` gegenprüfen (Smoke-Test unten) |
 | `suspended.js initTab()` das Favicon-Setup verschiebt | `getPassthroughFaviconMeta()` davor einhängen |
 | `popup.js setStatus()` umbaut | `statusDetail += await getSuspendTimeDetail(status)` direkt vor dem `innerHTML`-Write |
+| `suspended.js setUrl()` umbaut | die Kürzung muss `gsUtils.cleanUrlForDisplay()` bleiben (Tests: `tests/gsUtils.cleanUrl.test.js`) |
+| `suspended.js setTitle()`/`setReason()` umbaut | die Ziele müssen über `gsUtils.setSuspendedPageTitle()`/`setSuspendedPageReason()` mit `textContent` laufen (Tests: `tests/gsUtils.suspendedTitle.test.js`, `tests/gsUtils.suspendedReason.test.js`) |
+| `historyItems.js createEl()` umbaut | `textContent` behalten; `htmlEncode` + `innerHTML` war der letzte Markup-Pfad der History-Seite |
 | `historyUtils.migrateTabs()` ändert | `convertForeignSuspendedUrl(url)` vor dem Host-Swap behalten |
 | `health.js scanTab()`/`scan()` umbaut | Flag `_ignoreDiscardedGrouped` muss vor der Tab-Schleife gesetzt und im Chrome/Edge-Zweig geprüft werden. Baut Upstream den Fix selbst ein → Hook entfernen |
 | `options.js renderNeverSuspendGroups()` umbaut | `renderNeverSuspendGroupPicker(groupKeys, openGroups)` am Ende aufrufen; Signatur ggf. anpassen |
@@ -102,21 +110,23 @@ node -e "for (const l of ['en','de']) JSON.parse(require('fs').readFileSync('src
 | neue Settings-Keys in `gsStorage` einführt | keine Aktion, unser Key hängt am Block-Ende |
 | eigene Custom-Timeout-Funktion einführt (Feature-Request upstream?) | Fork-Feature 1 evtl. **entfernen** und Migration des Storage-Keys erwägen |
 
-### Smoke-Test des Moduls (ohne Browser)
+### Tests nach dem Merge
 
-Es gibt keine Test-Suite im Upstream. Ein schneller Node-Smoke-Test des Parsers/Matchers/Favicon-Roundtrips
-liegt als Vorlage in `docs/TESTING.md` (Abschnitt „Node-Smoke-Test“).
+Die Suite ist seit 28.10.2026 fester Bestandteil des Branches (Vitest, `npm test`). Nach jedem
+Merge gilt: **513/514** müssen grün bleiben; die eine rote Numeric-0-Erwartung ist bekannt
+(siehe [TESTING.md](TESTING.md)). Neue Fork-Logik braucht einen Test unter `tests/`
+(`AGENTS.md`, Definition of Done).
 
 ## Alternative: Rebase statt Merge
 
 Wenn eine lineare Historie gewünscht ist:
 
 ```sh
-git checkout fable
+git checkout testing-bevor-merging-zu-eigen-+-mast
 git rebase master
 # Konflikte wie oben lösen, dann:
 git rebase --continue
-git push --force-with-lease origin fable
+git push --force-with-lease origin testing-bevor-merging-zu-eigen-+-mast
 ```
 
 Nachteil: Force-Push; Vorteil: Fork-Commits bleiben als saubere, kleine Commits oben auf.

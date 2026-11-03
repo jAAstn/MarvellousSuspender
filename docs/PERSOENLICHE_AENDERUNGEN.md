@@ -1,32 +1,34 @@
 # Katalog der persönlichen Änderungen
 
-> **Stand:** 19.09.2026 (2) · Basis: `upstream/master` (gioxx/MarvellousSuspender, v9.0.3, Commit `25574c39`)
+> **Stand:** 28.10.2026 · Basis: `upstream/release/9.1.0` (Commit `7aeb8e45`), Manifest **9.1.0.1**
+> (`860bb1fe`) · Branch `testing-bevor-merging-zu-eigen-+-mast`
 > **Prinzip:** Alle Fork-Logik lebt in **einem** eigenen Modul `src/js/gsCustomSuspend.js`.
 > Upstream-Dateien enthalten nur minimale Hooks, jede Zeile ist mit `// [FORK]` (JS/CSS)
 > bzw. `<!-- [FORK] -->` (HTML) markiert.
 > `grep -rn "\[FORK\]" src` listet **alle** Berührungspunkte → Pflicht-Check nach jedem Upstream-Merge
 > (siehe [UPSTREAM_UPDATE.md](UPSTREAM_UPDATE.md)).
 
-## Übersicht der Hooks (30 Stellen außerhalb des Moduls)
+## Übersicht der Hooks (40 Stellen außerhalb des Moduls, 42 Marker gesamt)
 
 | Datei | Anzahl | Was |
 |---|---|---|
-| `src/js/gsStorage.js` | 2 | Key `CUSTOM_SUSPEND_TIMES` + Default `''` |
-| `src/js/gsUtils.js` | 3 | Import, `generateSuspendedUrl(…, favIconUrl)`, Settings-Change-Trigger |
-| `src/js/tgs.js` | 6 | Import, Timer-Override, Status-Override, History-Retry, Tab-Strip-Kontextmenü-Probe (2×) |
-| `src/js/gsTabSuspendManager.js` | 5 | Import, 2× `favIconUrl`, History-Cleanup, Eligibility-Override |
-| `src/js/gsTabDiscardManager.js` | 1 | `favIconUrl` durchreichen |
-| `src/js/gsSession.js` | 1 | `favIconUrl` durchreichen |
+| `src/js/gsTabSuspendManager.js` | 6 | Import, 2× `favIconUrl`, History-Cleanup, Eligibility-Override |
+| `src/js/tgs.js` | 4 | Import, Timer-Override, Status-Override, History-Retry |
+| `src/js/gsUtils.js` | 4 | Import, `generateSuspendedUrl(…, favIconUrl)`, Settings-Change-Trigger |
 | `src/js/suspended.js` | 3 | Import, `getPassthroughFaviconMeta()`, Aufruf in `initTab()` |
 | `src/js/options.js` | 3 | `elementPrefMap.customSuspendTimes`, Aufruf + Funktion `renderNeverSuspendGroupPicker()` |
-| `src/options.html` | 2 | Textarea-Block, Gruppen-Picker-Block |
-| `src/js/health.js` | 4 | Import, Flag `_ignoreDiscardedGrouped`, Setzen in `scan()`, Prüfung in `scanTab()` |
-| `src/js/background.js` | 2 | Message-Case `addNeverSuspendGroup`, externer Message-Listener (detached-IIFE-Rewrite) |
-| `src/css/style.css` | 1 | `.tabGroupPicker` |
 | `src/js/popup.js` | 3 | Import, `getSuspendTimeDetail()`, Aufruf in `setStatus()` |
-| `src/css/popup.css` | 1 | `.statusTimeDetail` |
+| `src/js/health.js` | 3 | Import, Flag `_ignoreDiscardedGrouped`, Prüfung in `scanTab()` |
+| `src/js/gsStorage.js` | 2 | Key `CUSTOM_SUSPEND_TIMES` + Default `''` |
+| `src/js/background.js` | 2 | Message-Case `addNeverSuspendGroup`, externer Message-Listener (detached-IIFE-Rewrite) |
 | `src/js/history.js` | 2 | Import, `knownExtensions[ZeroRAM]` |
 | `src/js/historyUtils.js` | 2 | Import, ZeroRAM-Konvertierung in `migrateTabs()` |
+| `src/options.html` | 2 | Textarea-Block, Gruppen-Picker-Block |
+| `src/js/gsTabDiscardManager.js` | 1 | `favIconUrl` durchreichen |
+| `src/js/gsSession.js` | 1 | `favIconUrl` durchreichen |
+| `src/css/style.css` | 1 | `.tabGroupPicker` |
+| `src/css/popup.css` | 1 | `.statusTimeDetail` |
+| `src/js/gsCustomSuspend.js` | 2 | im Modul selbst (nicht Teil der 40) |
 | `src/_locales/en/messages.json` | 11 Keys | (nicht markiert – JSON erlaubt keine Kommentare) |
 | `src/_locales/de/messages.json` | 11 Keys | dito |
 | `.gitignore` | 1 | `!/docs` – Upstream ignoriert `/docs`, der Fork versioniert es (Zeile am Dateiende) |
@@ -182,7 +184,9 @@ ist laut Upstream-CHANGELOG ab **Chrome 150** nativ gefixt.
 und überspringt dann den Chrome/Edge-Pfad (`tabGroupsDiscarded`). Der Brave-Pfad (`chrome://newtab/`)
 bleibt unberührt.
 
-**Upstream-Kandidat:** ja – reiner Bugfix, sollte als PR/Issue gemeldet werden.
+**Upstream-Status:** #551 ist inzwischen gemergt (`b5fa5ee4`); Upstream gated
+`isBrokenGroupedDiscardedTab()` selbst auf Chrome < 150. Der Fork-Flag ist für diesen Fall damit
+redundant – siehe Roadmap („Tab-Health-Fork-Flag aufräumen“).
 
 ---
 
@@ -212,7 +216,7 @@ Neu-Armierung und Incognito-Schutz sind damit identisch.
 ## 9. i18n
 
 Nur `en` (Default-Locale, Chrome-Fallback) und `de` gepflegt. `npm run check-locales` meldet deshalb
-die 11 Keys in 16 weiteren Locales als `missing` – **bekannt und akzeptiert**. Die Keys:
+die 11 Keys in 17 weiteren Locales als `missing` – **bekannt und akzeptiert**. Die Keys:
 
 ```
 html_options_always_suspend_custom_times_title
@@ -230,33 +234,30 @@ html_options_never_suspend_groups_add_none
 
 ---
 
-## 10. Tab-Strip-Kontextmenü: Chromium-Fähigkeitsprobe
+## 10. Tab-Strip-Kontextmenü (aktiv, mit Browser-Guard)
 
-**Problem:** Der `tab`-Context-Typ für `chrome.contextMenus` (Rechtsklick auf einen Tab in der Tab-Leiste)
-ist eine **Chromium-150-API** ([PSA der Chromium-Extensions-Gruppe](https://groups.google.com/a/chromium.org/g/chromium-extensions/c/RReE8dtY4Ok/m/hOQaYDNYAwAJ)).
-Auf älteren Engines (z. B. Brave 1.84 / Chromium 142) warf jeder der 17 `tab_*`-`create()`-Aufrufe einen
-TypeError und brach den **kompletten** Menü-Aufbau ab — auch das normale Seiten-Kontextmenü fehlte
-(dunkler Uncaught-in-promise-Fehler im `brave://extensions`-Errors-Tab, `js/tgs.js:2149`).
+**Hintergrund:** Der `tab`-Context-Typ für `chrome.contextMenus` (Rechtsklick auf einen Tab in der
+Tab-Leiste) ist eine **Chromium-150-API**. Auf älteren Engines (z. B. Brave 1.84 / Chromium 142)
+warf `create()` mit `contexts: ['tab']` einen TypeError und brach den **kompletten** Menü-Aufbau ab —
+auch das normale Seiten-Kontextmenü fehlte.
 
-**Fix (`tgs.js`, Commit `65ae5988`, `[FORK]`-markiert):**
-- `isTabStripContextSupported()` registriert ein unsichtbares Wegwerf-Probe-Item
-  (`tab_context_support_probe`, `contexts: ['tab']`) und wertet den Create-Callback aus.
-  Deckt beide Fehlermodi ab: den **synchronen** TypeError (Argument-Check läuft vor dem IPC-Versand →
-  `try/catch` um den Aufruf) und den **asynchronen** `runtime.lastError`-Pfad (Callback feuert mit Fehler).
-  Das `lastError` wird vor dem `remove()` in eine Variable kopiert (`remove()` würde es sonst überschreiben);
-  der `remove()`-Fehler selbst wird per `void chrome.runtime.lastError` geschluckt (Item existiert im
-  Fehlerfall nicht).
-- `buildContextMenu()` (jetzt `async`) registriert die Tab-Strip-Sektion nur noch, wenn der Probe erfolgreich
-  war. Die Seitenmenü-Items werden weiterhin synchron vor dem ersten `await` registriert — keine Verzögerung
-  für das Hauptmenü.
-- **Selbstheilung beim Browser-Update:** `onInstalled` feuert auch bei Browser-Updates → nach einem
-  Brave-Update auf Chromium 150+ läuft der Probe erneut, ohne Extension-Update.
-- Auf Chromium 149+ nimmt die API die Registrierung an, auch wenn das UI-Rendering noch nicht shipped ist
-  (auf Chrome 149 verifiziert) — die Items erscheinen dann automatisch mit dem Feature-Rollout.
+**Aktueller Stand (`tgs.js`, `[FORK]`-markiert):** 16 Tab-Strip-Einträge werden als Liste aufgebaut.
+Nur der **erste** wird in `try/catch` registriert; gelingt das nicht, wird die Sektion übersprungen und
+das Seitenmenü bleibt bestehen. Ein Fehler bei einem späteren Eintrag wird bewusst nicht gefangen —
+das wäre ein Defekt an genau diesem Eintrag, kein fehlendes Browser-Feature. Die Einträge führen die
+bestehende `lastCreate`-Kette des Seitenmenüs fort, damit der Aufbau erst nach dem letzten `create()`
+auflöst.
 
-**Offen (Roadmap 🟡):** Probe-Ergebnis nicht memoisiert — läuft bei jedem Rebuild (Installation, Extension-
-Update, Änderung der Kontextmenü-Einstellung). Eine Modul-Variable würde den IPC-Round-Trip sparen und ein
-kleines Doppel-Registrierungs-Race bei nahezu gleichzeitigem Aufruf entschärfen.
+**Vorgeschichte, wichtig für Upstream-Merges:** Commit `d8ec67d3` („Remove Turkish locale & disable
+tab-strip menu“) hatte den Block auskommentiert. Der Stand davor war jedoch **syntaktisch kaputt**:
+`tabStripItems` und `lastCreate` waren je zweimal im selben Scope deklariert (`node --check`:
+`Identifier 'tabStripItems' has already been declared`). Das Auskommentieren war die Rettung, entfernte
+aber still 16 Menüeinträge. Commit `f95d6b11` hat die letzte valide Struktur aus `97436179`
+wiederhergestellt: Liste bleibt, Erzeugung aktiv, Tab-Strip-Einträge setzen die `lastCreate`-Kette fort.
+Alle 12 Kontextmenü-Tests sind grün.
+
+**Nicht mehr vorhanden:** die frühere Wegwerf-Probe `isTabStripContextSupported()` mit eigenem
+IPC-Round-Trip. Der leichte `try/catch`-Guard deckt den einzigen realistischen Fehlerfall ab.
 
 ---
 
@@ -312,3 +313,99 @@ sich mit den Altlasten vermischen.
 **Grundlage:** `docs/DECISIONS.md` ADR-010; Upstream-Dateien berührt: `background.js`, `gsChrome.js`,
 `gsFavicon.js`, `gsSession.js`, `gsTabSuspendManager.js`, `gsUtils.js`, `suspended.js`, `tgs.js` —
 semantisch identische Umbauten ohne `[FORK]`-Marker (kein Verhaltenwechsel, siehe ADR-010).
+
+---
+
+## 13. Performance-Pass (Commit `1cd52c41`)
+
+Kein Verhaltenswechsel, nur weniger wiederholte Arbeit auf heißen Pfaden. Die Änderungen sind
+bewusst **nicht** `[FORK]`-markiert: Es sind Upstream-Optimierungen, die auch dort passen würden
+(ADR-010).
+
+- **`gsUtils.js`** – Whitelist-/Always-Suspend-Listen werden einmal gesplittet (Cache, max. 20
+  Einträge), `/regex/`-Einträge einmal kompiliert (max. 500), `getHashVariable()` parst den Hash
+  einer Suspended-URL einmal statt viermal, `htmlEncode()` verwendet ein wiederverwendetes
+  `<pre>`, `getChromeVersion()` wird gemerkt.
+- **`gsStorage.js`** – `getOption()` liest aus dem geteilten Settings-Cache und klont nicht mehr
+  das komplette Objekt pro Eigenschaft; nur echte Objektwerte werden geklont. Der Cache wird
+  über `chrome.storage.onChanged` invalidiert.
+- **`tgs.js`** – unabhängige `getOption`/Schutz-Prüfungen laufen parallel, die
+  Auswertungsreihenfolge von `calculateTabStatus()` bleibt gleich; `isCharging()` wird einmal
+  gelesen; Timer-Reset für alle Tabs in 10er-Blöcken.
+- **`gsTabSuspendManager.js`** – Capture-Optionen und Eligibility-Reads parallel;
+  `isCanvasVisible()` sampelt eine 32×32-Downscale statt das ganze Canvas zurückzulesen.
+- **Weitere** – `gsSession.js` (Session-ID gemerkt), `gsBackup.js` (Device-ID pro Kontext),
+  `gsFavicon.js` (parallele Fingerprints), `gsPrecapture.js`, `gsTabDiscardManager.js`,
+  `background.js` (Battery-Handler), `options.js` (rAF-gebündelter Scroll-Handler).
+
+Mikrobenchmarks für den Cache-Pfad und `getOption()` wurden lokal ausgeführt; die Werte sind
+maschinen- und laufzeitabhängig und deshalb **nicht** als Zusage dokumentiert.
+
+---
+
+## 14. Test-Suite (Vitest)
+
+Seit dem 27./28.10.2026 gibt es eine echte Suite statt Nur-Smoke-Test:
+
+- `vitest.config.mjs`: `environment: 'node'`, `tests/**/*.test.js`, Setup
+  `tests/setup/chrome-stub.js`. Der Stub implementiert nur die APIs, die die Module beim Laden
+  und in den Tests wirklich anfassen; alles andere bleibt absichtlich `undefined`.
+- **31 Dateien, 514 Tests** (513 grün), Schwerpunkt: Suspended-URL-Format, Whitelist-/Listen-Caches,
+  Queue, Session-Restore, Suspension-Eligibility, Kontextmenü, Storage-Optionen.
+- **Bekannte Altlast:** `gsTabSuspendManager.eligibility.test.js` erwartet, dass eine numerische
+  `0` als `SUSPEND_TIME` **nicht** als „Never“ gilt (Upstream-Oddity). Der Test ist rot; die
+  Abweichung ist dokumentiert und bewusst nicht durch eine Verhaltensänderung „grün“ gemacht.
+- E2E liegt getrennt in `tests/e2e/` (`npm run test:e2e`), nicht Teil von `npm test`.
+
+---
+
+## 15. Session-Manager: Session-Titel als Text
+
+`historyItems.createSessionTitle()` setzt den Session-Namen als Textknoten und baut die
+Zählerzeile als echtes `<small>`-Element daneben. Vorher ging beides als Template-String durch
+`innerHTML`. Der Name kommt aus dem Speichern-Dialog (`window.prompt`) oder aus dem Dateinamen
+eines importierten JSON-Backups – also aus Nutzer-/Backup-Daten, nicht aus der Extension.
+Das geschützte Leerzeichen ist jetzt ein echtes `\u00A0` (mit `textContent` würde `&nbsp;`
+wörtlich erscheinen). Test: `tests/historyItems.sessionTitle.test.js` mit minimalem DOM-Double
+(kein jsdom), inklusive Erhalt der Singular-/Plural-Zählerzeile und Markup-im-Namen-Fall.
+
+---
+
+## 16. Suspended-Seite: URL-Anzeige über `textContent`
+
+`setUrl()` schreibt die gekürzte Original-URL nicht mehr per `innerHTML`, sondern per
+`textContent`; die Kürzung selbst liegt als reine, testbare Funktion in
+`gsUtils.cleanUrlForDisplay()` (`tests/gsUtils.cleanUrl.test.js`). Hintergrund: `suspended.html`
+ist web-accessible, der `uri`-Hash ist frei wählbar. Die CSP verhindert Skript, Inline-Styles,
+externe Bilder und Iframes; übrig blieb Markup-Injection mit Phishing-/Spoofing-Wirkung.
+Die übrigen Stellen stehen mit Priorität in [ISSUE-innerhtml.md](ISSUE-innerhtml.md).
+
+---
+
+## 17. Suspended-Seite: Titel als Text
+
+`gsUtils.setSuspendedPageTitle(doc, title)` setzt `document.title`, `#gsTitle` und
+`#gsTopBarTitle` per `textContent`; `setTitle()` hängt nur noch den `mousedown`-Handler an das
+Topbar-Element. Der `htmlEncode`-Block in `initTab()` ist entfernt – ein Titel mit `<` bleibt
+`<` und wird nicht mehr als `&lt;` angezeigt (genau der Fehler aus 9.0.36, nur umgekehrt).
+Test: `tests/gsUtils.suspendedTitle.test.js` (4 Fälle; der `innerHTML`-Setter des Doubles wirft,
+damit ein Rückfall sofort auffällt).
+
+---
+
+## 18. Suspended-Seite: Suspend-Grund als Text
+
+`gsUtils.setSuspendedPageReason(doc, reason)` legt die Zeile `#reasonMsg` beim ersten Aufruf an
+und schreibt den Grund per `textContent`. Der Grund ist ein Locale-String aus Crowdin und damit
+laut `AGENTS.md` Daten; ein `null`-Grund leert die Zeile wie zuvor `innerHTML = null`. Test:
+`tests/gsUtils.suspendedReason.test.js` (4 Fälle: Anlegen, Wiederverwenden, leerer Grund,
+fehlender Container).
+
+---
+
+## 19. `historyItems.createEl()` ohne `innerHTML`
+
+`createEl()` setzt seinen Text per `textContent` statt per `innerHTML = gsUtils.htmlEncode(text)`.
+Das war die letzte Stelle, an der die History-Seite überhaupt noch encodiert hat: Labels aus
+`messages.json`, Tab-Titel und Gruppennamen sind Text. Der Session-Test lässt `innerHTML` jetzt
+werfen, damit ein Rückfall in den Markup-Pfad sofort auffällt.

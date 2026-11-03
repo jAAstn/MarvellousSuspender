@@ -12,13 +12,15 @@ Dieses Verzeichnis existiert **nur im Fork** (nicht im Upstream) und ist damit k
 | [TESTING.md](TESTING.md) | Nach jedem Merge/Feature: Lint, Node-Smoke-Test, manuelle Checkliste |
 | [DECISIONS.md](DECISIONS.md) | Warum Dinge so gebaut sind (ADRs) |
 | [performance-audit.md](performance-audit.md) | Optimierungspotenzial in Upstream und Fork |
+| [ISSUE-innerhtml.md](ISSUE-innerhtml.md) | Offene `innerHTML`-Datenpfade (Risiko, Priorität, Fix-Reihenfolge) |
 | [roadmap.md](roadmap.md) | Offene Punkte und Ideen |
 
 ## Schnellstart nach einem Upstream-Update
 
 ```sh
 git fetch upstream && git checkout master && git merge --ff-only upstream/master
-git checkout fable && git merge master
-grep -rn "\[FORK\]" src --include=*.js --include=*.html --include=*.css | grep -v gsCustomSuspend.js | wc -l   # Soll: 30 (Stand 09/2026)
+git checkout testing-bevor-merging-zu-eigen-+-mast && git merge master
+grep -rn "\[FORK\]" src --include=*.js --include=*.html --include=*.css | grep -v gsCustomSuspend.js | wc -l   # Soll: 40 (Stand 10/2026)
+npm test
 npx eslint --quiet src/js/gsCustomSuspend.js
 ```

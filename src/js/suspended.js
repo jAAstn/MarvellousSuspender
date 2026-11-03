@@ -39,24 +39,6 @@ import  { gsCustomSuspend }       from './gsCustomSuspend.js'; // [FORK]
     };
   }
 
-  function cleanUrl(urlStr) {
-    // remove scheme
-    if (urlStr.indexOf('//') > 0) {
-      urlStr = urlStr.substring(urlStr.indexOf('//') + 2);
-    }
-    // remove query string
-    let match = urlStr.match(/\/?[?#]+/);
-    if (match) {
-      urlStr = urlStr.substring(0, match.index);
-    }
-    // remove trailing slash
-    match = urlStr.match(/\/$/);
-    if (match) {
-      urlStr = urlStr.substring(0, match.index);
-    }
-    return urlStr;
-  }
-
   async function getPreviewUri(suspendedUrl, previewMode) {
     // Disabled, viewport, or full-page preview
     if (!previewMode || previewMode === '0') return null;
@@ -77,7 +59,9 @@ import  { gsCustomSuspend }       from './gsCustomSuspend.js'; // [FORK]
 
   function setUrl(url) {
     const gsTopBarUrl = document.getElementById('gsTopBarUrl');
-    gsTopBarUrl.innerHTML = cleanUrl(url);
+    // textContent, not innerHTML: `url` is the original url from the hash, and
+    // suspended.html is web-accessible, so any page can hand this tab a value it chose.
+    gsTopBarUrl.textContent = gsUtils.cleanUrlForDisplay(url);
     gsTopBarUrl.setAttribute('href', url);
     gsTopBarUrl.onmousedown = function(event) { event.stopPropagation(); };
   }
@@ -160,15 +144,7 @@ import  { gsCustomSuspend }       from './gsCustomSuspend.js'; // [FORK]
   }
 
   function setReason(reason) {
-    let reasonMsgEl = document.getElementById('reasonMsg');
-    if (!reasonMsgEl) {
-      reasonMsgEl = document.createElement('div');
-      reasonMsgEl.setAttribute('id', 'reasonMsg');
-      reasonMsgEl.classList.add('reasonMsg');
-      const containerEl = document.getElementById('suspendedMsg-instr');
-      containerEl.insertBefore(reasonMsgEl, containerEl.firstChild);
-    }
-    reasonMsgEl.innerHTML = reason;
+    gsUtils.setSuspendedPageReason(document, reason);
   }
 
   function setScrollPosition(scrollPosition, previewMode) {
@@ -200,10 +176,8 @@ import  { gsCustomSuspend }       from './gsCustomSuspend.js'; // [FORK]
   }
 
   function setTitle(title) {
-    document.title = title;
-    document.getElementById('gsTitle').innerHTML = title;
-    const gsTopBarTitle = document.getElementById('gsTopBarTitle');
-    gsTopBarTitle.innerHTML = title;
+    const gsTopBarTitle = gsUtils.setSuspendedPageTitle(document, title);
+    if (!gsTopBarTitle) return;
     // Prevent unsuspend by parent container
     // Using mousedown event otherwise click can still be triggered if
     // mouse is released outside of this element
@@ -325,12 +299,9 @@ import  { gsCustomSuspend }       from './gsCustomSuspend.js'; // [FORK]
     // Set sessionId for subsequent checks
     document.sessionId = sessionId;
 
-    // Set title
-    let title = gsUtils.getSuspendedTitle(suspendedUrl);
-    if (title.indexOf('<') >= 0) {
-      // Encode any raw html tags that might be used in the title
-      title = gsUtils.htmlEncode(title);
-    }
+    // Set title. The hash value is attacker-controlled (suspended.html is
+    // web-accessible), so it is rendered as text, never as HTML.
+    const title = gsUtils.getSuspendedTitle(suspendedUrl);
     setTitle(title);
 
     const optionsPromise  = gsStorage.getSettings();

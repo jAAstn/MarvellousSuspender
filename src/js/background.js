@@ -344,16 +344,19 @@ import  { tgs }                   from './tgs.js';
       // offscreen.js reads it from an offscreen document and reports changes here instead.
           case 'batteryStatus' : {
             await tgs.setCharging(request.charging);
-            gsUtils.log('background', `isCharging: ${await tgs.isCharging()}`);
+            gsUtils.log('background', `isCharging: ${request.charging}`);
             tgs.setIconStatusForActiveTab();
         // Restart timers on all normal tabs: some may have been prevented from suspending
         // while charging, or need to switch to/from the battery-specific timeout now.
-            const hasBatterySpecificTimeout =
-          (await gsStorage.getOption(gsStorage.SUSPEND_TIME_ON_BATTERY)) !== '';
+        // The value just stored is the one to decide on; reading it back cost a
+        // chrome.storage.session round trip for every battery change.
+            const [batterySpecificTimeout, ignoreCharging] = await Promise.all([
+              gsStorage.getOption(gsStorage.SUSPEND_TIME_ON_BATTERY),
+              gsStorage.getOption(gsStorage.IGNORE_WHEN_CHARGING),
+            ]);
             if (
-              ((await tgs.isCharging()) === false &&
-            await gsStorage.getOption(gsStorage.IGNORE_WHEN_CHARGING)) ||
-          hasBatterySpecificTimeout
+              (request.charging === false && ignoreCharging) ||
+              batterySpecificTimeout !== ''
             ) {
               tgs.resetAutoSuspendTimerForAllTabs();
             }
