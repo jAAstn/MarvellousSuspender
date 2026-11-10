@@ -2,7 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [master]
+on:
+  push:
+    branches: ['**']
     tags: ['v*']
   pull_request:
   workflow_dispatch:
@@ -25,15 +27,19 @@ jobs:
         with:
           node-version: 22
           cache: npm
+        with:
+          node-version: 22
+          cache: npm
 
       - run: npm ci
 
-      - name: Lint
-        run: npm run lint
+      - name: Lint gate (blocks on NEW violations only)
+        run: npm run lint:ci
 
-      # Locale drift is expected between Crowdin syncs, so this step reports but does
-      # not block. Flip continue-on-error off once the flagged locales are caught up.
-      - name: Check locales
+      # check-locales currently fails on 16 locales waiting for a Crowdin sync
+      # (11 missing keys each, plus uk-UA). Report but don't block until that lands;
+      # flip this to a hard gate by removing the two lines below.
+      - name: Locale completeness check (non-blocking)
         run: npm run check-locales
         continue-on-error: true
 

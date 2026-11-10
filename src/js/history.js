@@ -4,6 +4,7 @@ import  { gsSession }             from './gsSession.js';
 import  { gsUtils }               from './gsUtils.js';
 import  { historyItems }          from './historyItems.js';
 import  { historyUtils }          from './historyUtils.js';
+import  { gsCustomSuspend }       from './gsCustomSuspend.js'; // [FORK]
 
 (() => {
   'use strict';
@@ -14,6 +15,7 @@ import  { historyUtils }          from './historyUtils.js';
     'plpkmjcnhhnpkblimgenmdhghfgghdpp'  : 'The Great-<span class="italic">er</span> Tab Discarder',
   };
   knownExtensions[chrome.runtime.id]    = 'The Marvellous Suspender ( this extension! )';
+  knownExtensions[gsCustomSuspend.ZERORAM_EXTENSION_ID] = gsCustomSuspend.ZERORAM_EXTENSION_NAME; // [FORK]
 
   async function reloadTabs(sessionId, windowId, openTabsAsSuspended) {
     const session = await gsIndexedDb.fetchSessionBySessionId(sessionId);

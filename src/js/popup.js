@@ -3,6 +3,7 @@ import  { gsSession }             from './gsSession.js';
 import  { gsStorage }             from './gsStorage.js';
 import  { gsUtils }               from './gsUtils.js';
 import  { tgs }                   from './tgs.js';
+import  { gsCustomSuspend }       from './gsCustomSuspend.js'; // [FORK]
 
 (function() {
   'use strict';
@@ -109,6 +110,25 @@ import  { tgs }                   from './tgs.js';
     }
   }
 
+  // [FORK] second status line: "Will suspend after X min/h (custom)" for the active tab.
+  // Only shown while a timer can actually run (normal/active status); see gsCustomSuspend.js.
+  async function getSuspendTimeDetail(status) {
+    if (status !== gsUtils.STATUS_NORMAL && status !== gsUtils.STATUS_ACTIVE) {
+      return '';
+    }
+    const tab = await new Promise((resolve) => tgs.getCurrentlyActiveTab(resolve));
+    if (!tab || !tab.url) {
+      return '';
+    }
+    const globalTime = await gsCustomSuspend.getEffectiveGlobalSuspendTime(await tgs.isCharging());
+    const info       = await gsCustomSuspend.resolveSuspendTime(tab.url, globalTime);
+    const text       = gsCustomSuspend.formatSuspendTimeDetail(info);
+    if (!text) {
+      return '';
+    }
+    return text;
+  }
+
   async function setStatus(status) {
     setSuspendCurrentVisibility(status);
 
@@ -184,8 +204,15 @@ import  { tgs }                   from './tgs.js';
     } else {
       gsUtils.warning('popup', 'Could not process tab status of: ' + status);
     }
+    const suspendTimeDetail = await getSuspendTimeDetail(status); // [FORK] plain text
     const statusDetailEl = document.getElementById('statusDetail');
     gsUtils.setLocalisedContent(statusDetailEl, statusDetail);
+    if (suspendTimeDetail) {
+      const detailEl = document.createElement('span');
+      detailEl.className = 'statusTimeDetail';
+      detailEl.textContent = suspendTimeDetail;
+      statusDetailEl.append(document.createElement('br'), detailEl);
+    }
     let statusLinkEl = null;
     if (statusLink) {
       statusLinkEl = document.createElement('a');
@@ -193,6 +220,7 @@ import  { tgs }                   from './tgs.js';
       gsUtils.setLocalisedContent(statusLinkEl, statusLink);
       statusDetailEl.append(' ', statusLinkEl);
     }
+
     //  document.getElementById('statusIcon').className = statusIconClass;
     // if (status === gsUtils.STATUS_UNKNOWN || status === gsUtils.STATUS_LOADING) {
     //     document.getElementById('statusIcon').classList.add('fa-spin');

@@ -9,6 +9,7 @@ import  { gsStorage }             from './gsStorage.js';
 import  { gsTabDiscardManager }   from './gsTabDiscardManager.js';
 import  { gsTabSuspendManager }   from './gsTabSuspendManager.js';
 import  { tgs }                   from './tgs.js';
+import  { gsCustomSuspend }       from './gsCustomSuspend.js'; // [FORK]
 
 'use strict';
 
@@ -20,6 +21,79 @@ const LOCALISED_TAGS = ['b', 'br', 'em', 'i', 'strong'];
 // <title>: they get the text of the message, without its tags.
 const TEXT_ONLY_ELEMENTS = ['title'];
 const LOCALISED_TAG_OR_NEWLINE = /<(\/?)([a-z]+)(?:[\s/][^<>]*)?>|\n/gi;
+
+// Hot-path caches. Every automatic and bulk tab check re-reads the same whitelist /
+// always-suspend strings and recompiles the same /regex/ entries, and a suspended page
+// parses its own URL hash four times (title, scroll position, favicon, original url).
+// The inputs only change when the user edits a list or a page navigates, so the parsed
+// forms are kept. Both maps are bounded: a hand-edited list cannot grow them forever.
+const _regexCache = new Map();
+const _splitListCache = new Map();
+let _htmlEncodeEl = null;
+let _lastHashStr = null;
+let _lastHashMap = null;
+let _chromeVersion;
+
+function getCachedSplitList(listString) {
+  if (!listString) return [];
+  let items = _splitListCache.get(listString);
+  if (items === undefined) {
+    items = listString.split(/[\s\n]+/);
+    if (_splitListCache.size > 20) _splitListCache.clear();
+    _splitListCache.set(listString, items);
+  }
+  return items;
+}
+
+function getCachedRegex(pattern) {
+  let re = _regexCache.get(pattern);
+  if (re === undefined) {
+    try {
+      re = new RegExp(pattern);
+    }
+    catch (e) {
+      re = null;
+    }
+    if (_regexCache.size > 500) _regexCache.clear();
+    _regexCache.set(pattern, re);
+  }
+  return re;
+}
+
+// Only the last url is kept: a suspended page asks for four keys of the same hash in a
+// row, and the next thing it parses is usually a different page's url.
+function parseHashVariables(urlStr) {
+  const valuesByKey = {};
+  const keyPairRegEx = /^(.+)=(.+)/;
+
+  if (!urlStr || urlStr.length === 0 || urlStr.indexOf('#') === -1) {
+    return valuesByKey;
+  }
+
+  //extract hash component from url
+  let hashStr = urlStr.replace(/^[^#]+#+(.*)/, '$1');
+
+  if (hashStr.length === 0) {
+    return valuesByKey;
+  }
+
+  //handle possible unencoded final var called 'uri'
+  const uriIndex = hashStr.indexOf('uri=');
+  if (uriIndex >= 0) {
+    valuesByKey.uri = hashStr.substr(uriIndex + 4);
+    hashStr = hashStr.substr(0, uriIndex);
+  }
+
+  hashStr.split('&').forEach((keyPair) => {
+    if (keyPair?.match(keyPairRegEx)) {
+      valuesByKey[keyPair.replace(keyPairRegEx, '$1')] = keyPair.replace(
+        keyPairRegEx,
+        '$2',
+      );
+    }
+  });
+  return valuesByKey;
+}
 
 // ── Log buffer ────────────────────────────────────────────────────────────────
 // Persisted in IndexedDB (gsIndexedDb.js's DB_LOG_ENTRIES store), one record per entry,
@@ -238,10 +312,7 @@ export const gsUtils = {
   captureLogs : false,
 
   contains(array, value) {
-    for (let i = 0; i < array.length; i++) {
-      if (array[i] === value) return true;
-    }
-    return false;
+    return array.includes(value);
   },
 
   // Races promise against a timer (#544). If the timer fires first, the result is whatever
@@ -648,52 +719,47 @@ export const gsUtils = {
   },
 
   shouldSuspendDiscardedTabs: async () => {
-    const suspendInPlaceOfDiscard = await gsStorage.getOption(gsStorage.SUSPEND_IN_PLACE_OF_DISCARD);
-    const discardInPlaceOfSuspend = await gsStorage.getOption(gsStorage.DISCARD_IN_PLACE_OF_SUSPEND);
+    const [suspendInPlaceOfDiscard, discardInPlaceOfSuspend] = await Promise.all([
+      gsStorage.getOption(gsStorage.SUSPEND_IN_PLACE_OF_DISCARD),
+      gsStorage.getOption(gsStorage.DISCARD_IN_PLACE_OF_SUSPEND),
+    ]);
     return suspendInPlaceOfDiscard && !discardInPlaceOfSuspend;
   },
 
-  removeTabsByUrlAsPromised(url) {
-    return new Promise(async (resolve) => {
-      const tabs = await gsChrome.tabsQuery({ url });
-      const tabIds = tabs.map((tab) => tab.id).filter((item) => item !== undefined);
-      chrome.tabs.remove(tabIds, () => {
-        resolve(null);
-      });
-    });
+  removeTabsByUrlAsPromised: async (url) => {
+    const tabs = await gsChrome.tabsQuery({ url });
+    const tabIds = tabs.map((tab) => tab.id).filter((item) => item !== undefined);
+    await gsChrome.tabsRemove(tabIds);
+    return null;
   },
 
-  createTabAndWaitForFinishLoading(url, maxWaitTimeInMs) {
-    return new Promise(async (resolve) => {
-      let tab = await gsChrome.tabsCreate(url);
-      const retryUntil = Date.now() + (maxWaitTimeInMs || 1000);
-      let loaded = false;
-      while (tab && !loaded && Date.now() < retryUntil) {
-        loaded = tab.status === 'complete';
-        if (!loaded) {
-          await gsUtils.setTimeout(200);
-          tab = await gsChrome.tabsGet(tab.id);
-        }
+  createTabAndWaitForFinishLoading: async (url, maxWaitTimeInMs) => {
+    let tab = await gsChrome.tabsCreate(url);
+    const retryUntil = Date.now() + (maxWaitTimeInMs || 1000);
+    let loaded = false;
+    while (tab && !loaded && Date.now() < retryUntil) {
+      loaded = tab.status === 'complete';
+      if (!loaded) {
+        await gsUtils.setTimeout(200);
+        tab = await gsChrome.tabsGet(tab.id);
       }
-      resolve(tab);
-    });
+    }
+    return tab;
   },
 
-  createWindowAndWaitForFinishLoading(createData, maxWaitTimeInMs) {
-    return new Promise(async (resolve) => {
-      let window = await gsChrome.windowsCreate(createData);
-      maxWaitTimeInMs = maxWaitTimeInMs || 1000;
-      const retryUntil = Date.now() + maxWaitTimeInMs;
-      let loaded = false;
-      while (!loaded && Date.now() < retryUntil) {
-        window = await gsChrome.windowsGet(window.id);
-        loaded = window.tabs.length > 0 && window.tabs[0].status === 'complete';
-        if (!loaded) {
-          await gsUtils.setTimeout(200);
-        }
+  createWindowAndWaitForFinishLoading: async (createData, maxWaitTimeInMs) => {
+    let window = await gsChrome.windowsCreate(createData);
+    maxWaitTimeInMs = maxWaitTimeInMs || 1000;
+    const retryUntil = Date.now() + maxWaitTimeInMs;
+    let loaded = false;
+    while (!loaded && Date.now() < retryUntil) {
+      window = await gsChrome.windowsGet(window.id);
+      loaded = window.tabs.length > 0 && window.tabs[0].status === 'complete';
+      if (!loaded) {
+        await gsUtils.setTimeout(200);
       }
-      resolve(window);
-    });
+    }
+    return window;
   },
 
   checkWhiteList: async (url) => {
@@ -702,7 +768,7 @@ export const gsUtils = {
   },
 
   checkSpecificWhiteList(url, whitelistString) {
-    const whitelistItems = whitelistString ? whitelistString.split(/[\s\n]+/) : [];
+    const whitelistItems = getCachedSplitList(whitelistString);
     const whitelisted = whitelistItems.some((item) => {
       return gsUtils.testForMatch(item, url);
     }, this);
@@ -719,7 +785,7 @@ export const gsUtils = {
   },
 
   checkSpecificAlwaysSuspendList(url, listString) {
-    const listItems = listString ? listString.split(/[\s\n]+/) : [];
+    const listItems = getCachedSplitList(listString);
     return listItems.some((item) => gsUtils.testForMatch(item, url));
   },
 
@@ -839,13 +905,8 @@ export const gsUtils = {
       whitelistItem.indexOf('/', whitelistItem.length - 1) !== -1
     ) {
       whitelistItem = whitelistItem.substring(1, whitelistItem.length - 1);
-      try {
-        new RegExp(whitelistItem);
-      }
-      catch (e) {
-        return false;
-      }
-      return new RegExp(whitelistItem).test(word);
+      const re = getCachedRegex(whitelistItem);
+      return re ? re.test(word) : false;
 
       // test as substring
     }
@@ -1069,6 +1130,7 @@ export const gsUtils = {
     build(el, nodes);
   },
 
+
   setPageTheme(win, theme) {
     if (win.document?.body) {
       // Set theme
@@ -1125,9 +1187,11 @@ export const gsUtils = {
     }
   },
 
-  generateSuspendedUrl: (url, title, scrollPos) => {
+  // [FORK] optional 4th arg favIconUrl: data:-favicons are carried in the hash (see gsCustomSuspend.js)
+  generateSuspendedUrl: (url, title, scrollPos, favIconUrl) => {
     const encodedTitle = gsUtils.encodeString(title);
-    const args = `#ttl=${encodedTitle}&pos=${scrollPos || '0'}&uri=${url}`;
+    const faviconArg = gsCustomSuspend.buildFaviconHashParam(favIconUrl); // [FORK] must precede uri=
+    const args = `#ttl=${encodedTitle}&pos=${scrollPos || '0'}${faviconArg}&uri=${url}`;
     return chrome.runtime.getURL(`suspended.html${  args}`);
   },
 
@@ -1198,38 +1262,13 @@ export const gsUtils = {
     return rootUrlStr;
   },
 
+
   getHashVariable(key, urlStr) {
-    let valuesByKey = {},
-      keyPairRegEx = /^(.+)=(.+)/,
-      hashStr;
-
-    if (!urlStr || urlStr.length === 0 || urlStr.indexOf('#') === -1) {
-      return false;
+    if (urlStr !== _lastHashStr) {
+      _lastHashStr = urlStr;
+      _lastHashMap = parseHashVariables(urlStr);
     }
-
-    //extract hash component from url
-    hashStr = urlStr.replace(/^[^#]+#+(.*)/, '$1');
-
-    if (hashStr.length === 0) {
-      return false;
-    }
-
-    //handle possible unencoded final var called 'uri'
-    const uriIndex = hashStr.indexOf('uri=');
-    if (uriIndex >= 0) {
-      valuesByKey.uri = hashStr.substr(uriIndex + 4);
-      hashStr = hashStr.substr(0, uriIndex);
-    }
-
-    hashStr.split('&').forEach((keyPair) => {
-      if (keyPair?.match(keyPairRegEx)) {
-        valuesByKey[keyPair.replace(keyPairRegEx, '$1')] = keyPair.replace(
-          keyPairRegEx,
-          '$2',
-        );
-      }
-    });
-    return valuesByKey[key] || false;
+    return _lastHashMap[key] || false;
   },
   getSuspendedTitle(urlStr) {
     return gsUtils.decodeString(gsUtils.getHashVariable('ttl', urlStr) || '');
@@ -1344,13 +1383,16 @@ export const gsUtils = {
   },
 
   htmlEncode(text) {
-    const pre = document.createElement('pre').appendChild(document.createTextNode(text));
-    return pre.parentElement?.innerHTML;
+    _htmlEncodeEl ??= document.createElement('pre');
+    _htmlEncodeEl.textContent = text;
+    return _htmlEncodeEl.innerHTML;
   },
 
   getChromeVersion() {
+    if (_chromeVersion !== undefined) return _chromeVersion;
     const raw = navigator.userAgent.match(/Chrom(e|ium)\/([0-9]+)\./);
-    return raw ? parseInt(raw[2], 10) : false;
+    _chromeVersion = raw ? parseInt(raw[2], 10) : false;
+    return _chromeVersion;
   },
 
   generateHashCode(text) {
@@ -1473,6 +1515,7 @@ export const gsUtils = {
           //update suspend timers
           const updateSuspendTime =
             changedSettingKeys.includes(gsStorage.SUSPEND_TIME) ||
+            changedSettingKeys.includes(gsStorage.CUSTOM_SUSPEND_TIMES) || // [FORK]
             (changedSettingKeys.includes(gsStorage.SUSPEND_TIME_ON_BATTERY) && (await tgs.isCharging()) === false) ||
             (changedSettingKeys.includes(gsStorage.IGNORE_ACTIVE_TABS) && tab.active) ||
             (changedSettingKeys.includes(gsStorage.IGNORE_PINNED) && !settings[gsStorage.IGNORE_PINNED] && tab.pinned) ||

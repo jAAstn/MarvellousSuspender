@@ -15,3 +15,8 @@ build
 node_modules
 Thumbs.db
 tmp
+/.superpowers
+
+# [FORK] fork documentation lives in /docs (upstream ignores it)
+!/docs
+/.cloud-attachments

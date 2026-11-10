@@ -9,6 +9,7 @@ import  { gsTabSuspendManager }   from './gsTabSuspendManager.js';
 import  { gsTabCheckManager }     from './gsTabCheckManager.js';
 import  { gsTabDiscardManager }   from './gsTabDiscardManager.js';
 import  { gsUtils }               from './gsUtils.js';
+import  { gsCustomSuspend }       from './gsCustomSuspend.js'; // [FORK]
 
 export const tgs = (function() {
 
@@ -873,21 +874,33 @@ export const tgs = (function() {
   async function resetAutoSuspendTimerForTab(tab) {
     await clearAutoSuspendTimerForTabId(tab.id);
 
-    let suspendTime = await gsStorage.getOption(gsStorage.SUSPEND_TIME);
+    // The two lookups and the two checks are independent of each other; awaiting them
+    // one by one made every timer reset pay four sequential IPC round trips.
+    const [initialSuspendTime, charging] = await Promise.all([
+      gsStorage.getOption(gsStorage.SUSPEND_TIME),
+      isCharging(),
+    ]);
+    let suspendTime = initialSuspendTime;
     // A battery-specific timeout (#252) only kicks in when one is actually set and we
     // know for certain we're running unplugged — isCharging() returns undefined (not
     // false) both when navigator.getBattery is unavailable in this MV3 service worker
     // and before its initial promise resolves, so an explicit === false check is
     // required here; treating "unknown" as "unplugged" would apply the override while
     // still on AC.
-    if ((await isCharging()) === false) {
+    if (charging === false) {
       const suspendTimeOnBattery = await gsStorage.getOption(gsStorage.SUSPEND_TIME_ON_BATTERY);
       if (suspendTimeOnBattery !== '') {
         suspendTime = suspendTimeOnBattery;
       }
     }
+    // [FORK] per-URL custom timeout (Options → "Custom auto-suspend times") overrides the global one
+    const [resolvedSuspend, isProtectedActive] = await Promise.all([
+      gsCustomSuspend.resolveSuspendTime(tab.url, suspendTime),
+      gsUtils.isProtectedActiveTab(tab),
+    ]);
+    suspendTime = resolvedSuspend.minutes;
     if (
-      (await gsUtils.isProtectedActiveTab(tab)) ||
+      isProtectedActive ||
       isNaN(suspendTime) ||
       suspendTime <= 0
     ) {
@@ -919,10 +932,14 @@ export const tgs = (function() {
       }
     });
     chrome.tabs.query({}, async (tabs) => {
-      for (const tab of tabs) {
-        if (gsUtils.isNormalTab(tab)) {
-          await resetAutoSuspendTimerForTab(tab);
-        }
+      // Bounded batches: each reset costs several storage reads and an alarm write, and
+      // a restored profile can have hundreds of tabs. Ten at a time keeps the settings
+      // reads and the alarm calls from queueing behind each other one tab at a time.
+      const normalTabs = tabs.filter((tab) => gsUtils.isNormalTab(tab));
+      for (let i = 0; i < normalTabs.length; i += 10) {
+        await Promise.allSettled(
+          normalTabs.slice(i, i + 10).map((tab) => resetAutoSuspendTimerForTab(tab)),
+        );
       }
     });
   }
@@ -1168,9 +1185,9 @@ export const tgs = (function() {
     });
   }
 
-  function initialiseTabContentScript(tab, isTempWhitelist, scrollPos) {
-    return new Promise(async (resolve, reject) => {
-      const ignoreForms = await gsStorage.getOption(gsStorage.IGNORE_FORMS);
+  async function initialiseTabContentScript(tab, isTempWhitelist, scrollPos) {
+    const ignoreForms = await gsStorage.getOption(gsStorage.IGNORE_FORMS);
+    return new Promise((resolve, reject) => {
       gsMessages.sendInitTabToContentScript(tab.id, ignoreForms, isTempWhitelist, scrollPos, (error, response) => {
         if (error) {
           reject(error);
@@ -1223,6 +1240,7 @@ export const tgs = (function() {
     // If the tab has transitioned to discarded, we don't want to initialize it?
     if ( (changeInfo.status && changeInfo.status === 'complete') /* || changeInfo.discarded */ ) {
       // gsUtils.log( tab.id, 'tgs', 'handleSuspendedTabStateChanged complete or discarded' );
+      gsCustomSuspend.removeTabHistoryForSuspendedTab(tab.url); // [FORK] retry of the post-suspend history cleanup
       gsTabSuspendManager.unqueueTabForSuspension(tab); //safety precaution
       // NOTE: See above as to why this is commented out
       // const shouldInitTab = await getTabStatePropForTabId( tab.id, STATE_INITIALISE_SUSPENDED_TAB );
@@ -1605,8 +1623,8 @@ export const tgs = (function() {
     }
 
     //update icon
-    const status = await new Promise(async (resolve) => {
-      await calculateTabStatus(focusedTab, contentScriptStatus, resolve);
+    const status = await new Promise((resolve) => {
+      calculateTabStatus(focusedTab, contentScriptStatus, resolve);
     });
 
     //if this tab still has focus then update icon
@@ -1853,14 +1871,19 @@ export const tgs = (function() {
     }
     //check never suspend
     //should come after whitelist check as it causes popup to show the whitelisting option
-    let effectiveSuspendTime = await gsStorage.getOption(gsStorage.SUSPEND_TIME);
-    if ((await isCharging()) === false) {
+    const [initialSuspendTime, chargingNow] = await Promise.all([
+      gsStorage.getOption(gsStorage.SUSPEND_TIME),
+      isCharging(),
+    ]);
+    let effectiveSuspendTime = initialSuspendTime;
+    if (chargingNow === false) {
       const suspendTimeOnBattery = await gsStorage.getOption(gsStorage.SUSPEND_TIME_ON_BATTERY);
       if (suspendTimeOnBattery !== '') {
         effectiveSuspendTime = suspendTimeOnBattery;
       }
     }
-    if (effectiveSuspendTime === '0') {
+    // [FORK] a custom rule can re-enable (or, with 0, disable) suspension for this URL
+    if ((await gsCustomSuspend.resolveSuspendTime(tab.url, effectiveSuspendTime)).minutes === 0) {
       callback(gsUtils.STATUS_NEVER);
       return;
     }
@@ -1871,43 +1894,55 @@ export const tgs = (function() {
           callback(contentScriptStatus);
           return;
         }
+        // The option reads and the protection checks are independent; run them together
+        // and decide in the same order afterwards, so the reported status is unchanged.
+        const [ignoreCharging, ignoreOffline, isPinned, isAudible, isAppWindow, isGrouped, isTabGroup, isActive] = await Promise.all([
+          gsStorage.getOption(gsStorage.IGNORE_WHEN_CHARGING),
+          gsStorage.getOption(gsStorage.IGNORE_WHEN_OFFLINE),
+          gsUtils.isProtectedPinnedTab(tab),
+          gsUtils.isProtectedAudibleTab(tab),
+          gsUtils.isProtectedAppWindowTab(tab),
+          gsUtils.isProtectedGroupedTab(tab),
+          gsUtils.isProtectedTabGroupTab(tab),
+          gsUtils.isProtectedActiveTab(tab),
+        ]);
         //check running on battery
-        if ( await gsStorage.getOption(gsStorage.IGNORE_WHEN_CHARGING) && await isCharging() ) {
+        if ( ignoreCharging && chargingNow ) {
           callback(gsUtils.STATUS_CHARGING);
           return;
         }
         //check internet connectivity
-        if ( await gsStorage.getOption(gsStorage.IGNORE_WHEN_OFFLINE) && !navigator.onLine ) {
+        if ( ignoreOffline && !navigator.onLine ) {
           callback(gsUtils.STATUS_NOCONNECTIVITY);
           return;
         }
         //check pinned tab
-        if (await gsUtils.isProtectedPinnedTab(tab)) {
+        if (isPinned) {
           callback(gsUtils.STATUS_PINNED);
           return;
         }
         //check audible tab
-        if (await gsUtils.isProtectedAudibleTab(tab)) {
+        if (isAudible) {
           callback(gsUtils.STATUS_AUDIBLE);
           return;
         }
         //check app-mode window tab (#154)
-        if (await gsUtils.isProtectedAppWindowTab(tab)) {
+        if (isAppWindow) {
           callback(gsUtils.STATUS_APP_WINDOW);
           return;
         }
         //check tab in a tab group (#133)
-        if (await gsUtils.isProtectedGroupedTab(tab)) {
+        if (isGrouped) {
           callback(gsUtils.STATUS_GROUPED_TAB);
           return;
         }
         //check never-suspend tab group (#133)
-        if (await gsUtils.isProtectedTabGroupTab(tab)) {
+        if (isTabGroup) {
           callback(gsUtils.STATUS_TAB_GROUP);
           return;
         }
         //check active
-        if (await gsUtils.isProtectedActiveTab(tab)) {
+        if (isActive) {
           callback(gsUtils.STATUS_ACTIVE);
           return;
         }
@@ -2025,6 +2060,8 @@ export const tgs = (function() {
       });
     }
   }
+
+
 
   //HANDLERS FOR RIGHT-CLICK CONTEXT MENU
   // Serializes every buildContextMenu() call — from background.js's rebuildContextMenu()
@@ -2255,92 +2292,6 @@ export const tgs = (function() {
         contexts: allContexts,
       });
 
-      // Tab strip context menu items (right-click on tab in tab bar)
-      const tabStripItems = [
-        {
-          id: 'tab_toggle_suspend',
-          title: gsUtils.getMessage('js_context_toggle_suspend_state'),
-          contexts: ['tab'],
-        },
-        {
-          id: 'tab_toggle_pause',
-          title: gsUtils.getMessage('js_context_toggle_pause_suspension'),
-          contexts: ['tab'],
-        },
-        {
-          id: 'tab_never_suspend_domain',
-          title: gsUtils.getMessage('js_context_never_suspend_domain'),
-          contexts: ['tab'],
-        },
-        {
-          id: 'tab_never_suspend_page',
-          title: gsUtils.getMessage('js_context_never_suspend_page'),
-          contexts: ['tab'],
-        },
-        {
-          id: 'tab_suspend_group',
-          title: gsUtils.getMessage('js_context_suspend_tab_group'),
-          contexts: ['tab'],
-        },
-        {
-          id: 'tab_unsuspend_group',
-          title: gsUtils.getMessage('js_context_unsuspend_tab_group'),
-          contexts: ['tab'],
-        },
-        // enabled always: they act on the right-clicked tab, so gating on the active one would
-        // grey them out on valid targets. See refreshNeverSuspendGroupMenuItems().
-        {
-          id: 'tab_never_suspend_group',
-          title: gsUtils.getMessage('js_context_never_suspend_group'),
-          contexts: ['tab'],
-        },
-        {
-          id: 'tab_allow_suspending_group',
-          title: gsUtils.getMessage('js_context_allow_suspending_group'),
-          contexts: ['tab'],
-        },
-        {
-          id: 'tab_suspend_ungrouped',
-          title: gsUtils.getMessage('js_context_suspend_ungrouped_tabs'),
-          contexts: ['tab'],
-        },
-        {
-          id: 'tab_unsuspend_ungrouped',
-          title: gsUtils.getMessage('js_context_unsuspend_ungrouped_tabs'),
-          contexts: ['tab'],
-        },
-        {
-          id: 'tab_separator1',
-          type: 'separator',
-          contexts: ['tab'],
-        },
-        {
-          id: 'tab_soft_suspend_other_tabs',
-          title: gsUtils.getMessage('js_context_soft_suspend_other_tabs_in_window'),
-          contexts: ['tab'],
-        },
-        {
-          id: 'tab_unsuspend_all_in_window',
-          title: gsUtils.getMessage('js_context_unsuspend_all_tabs_in_window'),
-          contexts: ['tab'],
-        },
-        {
-          id: 'tab_separator2',
-          type: 'separator',
-          contexts: ['tab'],
-        },
-        {
-          id: 'tab_soft_suspend_all',
-          title: gsUtils.getMessage('js_context_soft_suspend_all_tabs'),
-          contexts: ['tab'],
-        },
-        {
-          id: 'tab_unsuspend_all',
-          title: gsUtils.getMessage('js_context_unsuspend_all_tabs'),
-          contexts: ['tab'],
-        },
-      ];
-
       // Every create() from here on reports back, and the build resolves with the last
       // one issued (mc-triage review round 3, PR #500): chrome.contextMenus.create() calls
       // are processed by the browser in the order issued, so that one settling means every
@@ -2355,6 +2306,25 @@ export const tgs = (function() {
         contexts: allContexts,
       });
 
+      const tabStripItems = [
+        { id: 'tab_toggle_suspend', title: gsUtils.getMessage('js_context_toggle_suspend_state'), contexts: ['tab'] },
+        { id: 'tab_toggle_pause', title: gsUtils.getMessage('js_context_toggle_pause_suspension'), contexts: ['tab'] },
+        { id: 'tab_never_suspend_domain', title: gsUtils.getMessage('js_context_never_suspend_domain'), contexts: ['tab'] },
+        { id: 'tab_never_suspend_page', title: gsUtils.getMessage('js_context_never_suspend_page'), contexts: ['tab'] },
+        { id: 'tab_suspend_group', title: gsUtils.getMessage('js_context_suspend_tab_group'), contexts: ['tab'] },
+        { id: 'tab_unsuspend_group', title: gsUtils.getMessage('js_context_unsuspend_tab_group'), contexts: ['tab'] },
+        { id: 'tab_never_suspend_group', title: gsUtils.getMessage('js_context_never_suspend_group'), contexts: ['tab'] },
+        { id: 'tab_allow_suspending_group', title: gsUtils.getMessage('js_context_allow_suspending_group'), contexts: ['tab'] },
+        { id: 'tab_suspend_ungrouped', title: gsUtils.getMessage('js_context_suspend_ungrouped_tabs'), contexts: ['tab'] },
+        { id: 'tab_unsuspend_ungrouped', title: gsUtils.getMessage('js_context_unsuspend_ungrouped_tabs'), contexts: ['tab'] },
+        { id: 'tab_separator1', type: 'separator', contexts: ['tab'] },
+        { id: 'tab_soft_suspend_other_tabs', title: gsUtils.getMessage('js_context_soft_suspend_other_tabs_in_window'), contexts: ['tab'] },
+        { id: 'tab_unsuspend_all_in_window', title: gsUtils.getMessage('js_context_unsuspend_all_tabs_in_window'), contexts: ['tab'] },
+        { id: 'tab_separator2', type: 'separator', contexts: ['tab'] },
+        { id: 'tab_soft_suspend_all', title: gsUtils.getMessage('js_context_soft_suspend_all_tabs'), contexts: ['tab'] },
+        { id: 'tab_unsuspend_all', title: gsUtils.getMessage('js_context_unsuspend_all_tabs'), contexts: ['tab'] },
+      ];
+
       // The 'tab' context is recent: Chrome 147 and older throw on it in create(), and
       // manifest.json's minimum_chrome_version is 110. The tab strip menu is an extra, so
       // a browser that refuses it keeps the page menu built above and goes without.
@@ -2363,18 +2333,18 @@ export const tgs = (function() {
       const [firstTabStripItem, ...otherTabStripItems] = tabStripItems;
       let tabStripMenuAvailable = true;
       try {
+        // Reuses the binding from the page item above: the build must resolve with the
+        // last create() issued across both menus, so the tab strip items continue that
+        // chain instead of starting a second one.
         lastCreate = createContextMenuItem(firstTabStripItem);
       }
       catch (error) {
         tabStripMenuAvailable = false;
         const reason = String(error?.message ?? error);
         if (reason.includes("property 'contexts'")) {
-          // the refusal this is here for, in Chrome's own words
           gsUtils.log('tgs', 'Tab strip context menu not available on this browser:', reason);
         }
         else {
-          // anything else is a defect in this item, not an old browser: say so at a level
-          // that gets read, and still leave the page menu standing
           gsUtils.warning('tgs', 'Could not create the tab strip context menu:', reason);
         }
       }

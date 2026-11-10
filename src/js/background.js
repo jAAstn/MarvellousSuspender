@@ -344,16 +344,19 @@ import  { tgs }                   from './tgs.js';
       // offscreen.js reads it from an offscreen document and reports changes here instead.
           case 'batteryStatus' : {
             await tgs.setCharging(request.charging);
-            gsUtils.log('background', `isCharging: ${await tgs.isCharging()}`);
+            gsUtils.log('background', `isCharging: ${request.charging}`);
             tgs.setIconStatusForActiveTab();
         // Restart timers on all normal tabs: some may have been prevented from suspending
         // while charging, or need to switch to/from the battery-specific timeout now.
-            const hasBatterySpecificTimeout =
-          (await gsStorage.getOption(gsStorage.SUSPEND_TIME_ON_BATTERY)) !== '';
+        // The value just stored is the one to decide on; reading it back cost a
+        // chrome.storage.session round trip for every battery change.
+            const [batterySpecificTimeout, ignoreCharging] = await Promise.all([
+              gsStorage.getOption(gsStorage.SUSPEND_TIME_ON_BATTERY),
+              gsStorage.getOption(gsStorage.IGNORE_WHEN_CHARGING),
+            ]);
             if (
-              ((await tgs.isCharging()) === false &&
-            await gsStorage.getOption(gsStorage.IGNORE_WHEN_CHARGING)) ||
-          hasBatterySpecificTimeout
+              (request.charging === false && ignoreCharging) ||
+              batterySpecificTimeout !== ''
             ) {
               tgs.resetAutoSuspendTimerForAllTabs();
             }
@@ -387,6 +390,12 @@ import  { tgs }                   from './tgs.js';
           case 'removeNeverSuspendGroup' : {
             if (typeof request.groupKey === 'string' && request.groupKey) {
               await tgs.setTabGroupNeverSuspend(request.groupKey, false);
+            }
+            break;
+          }
+          case 'addNeverSuspendGroup' : { // [FORK] Options picker, mirrors removeNeverSuspendGroup
+            if (typeof request.groupKey === 'string' && gsUtils.parseTabGroupKey(request.groupKey)) {
+              await tgs.setTabGroupNeverSuspend(request.groupKey, true);
             }
             break;
           }
@@ -477,59 +486,81 @@ import  { tgs }                   from './tgs.js';
     return true;
   }
 
-  async function externalMessageRequestListener(request, sender, sendResponse) {
+  // [FORK] Rewritten from an async listener (whose returned promise Chrome ignores, closing the
+  // message channel before any post-await sendResponse could fire) to the same sync-listener +
+  // detached-IIFE pattern the internal messageRequestListener above uses.
+  function externalMessageRequestListener(request, sender, sendResponse) {
     gsUtils.log('background', 'externalMessageRequestListener', request, sender);
 
-    if (!request.action || !['suspend', 'unsuspend'].includes(request.action)) {
-      sendResponse('Error: unknown request.action:', request.action);
-      return;
-    }
+    // Chrome only keeps the message channel open if the listener returns `true`
+    // synchronously; an async listener's returned promise is ignored. All async work
+    // therefore happens in this detached IIFE (same pattern as messageRequestListener
+    // above) — otherwise every sendResponse() after an await (tabsGet, unsuspendTab,
+    // ...) would fire after the channel had already closed and the external caller
+    // would never see a reply.
+    (async () => {
+      try {
+        if (!request.action || !['suspend', 'unsuspend'].includes(request.action)) {
+          sendResponse(`Error: unknown request.action: ${request.action}`);
+          return;
+        }
 
-    let tab;
-    if (request.tabId) {
-      if (typeof request.tabId !== 'number') {
-        sendResponse('Error: tabId must be an int');
-        return;
+        let tab;
+        if (request.tabId) {
+          if (typeof request.tabId !== 'number') {
+            sendResponse('Error: tabId must be an int');
+            return;
+          }
+          tab = await gsChrome.tabsGet(request.tabId);
+          if (!tab) {
+            sendResponse(`Error: no tab found with id: ${request.tabId}`);
+            return;
+          }
+        }
+        else {
+          tab = await new Promise((r) => {
+            tgs.getCurrentlyActiveTab(r);
+          });
+        }
+
+        if (!tab) {
+          sendResponse('Error: failed to find a target tab');
+          return;
+        }
+
+        if (request.action === 'suspend') {
+          if (gsUtils.isSuspendedTab(tab, true)) {
+            sendResponse('Error: tab is already suspended');
+            return;
+          }
+
+          // Another extension must not override the protections the user set (GHSA-wh6f-63h6-wvq6).
+          gsTabSuspendManager.queueTabForSuspension(tab, 2);
+          sendResponse();
+          return;
+        }
+
+        if (request.action === 'unsuspend') {
+          if (!gsUtils.isSuspendedTab(tab)) {
+            sendResponse('Error: tab is not suspended');
+            return;
+          }
+
+          await tgs.unsuspendTab(tab);
+          sendResponse();
+          return;
+        }
+        sendResponse();
       }
-      tab = await gsChrome.tabsGet(request.tabId);
-      if (!tab) {
-        sendResponse('Error: no tab found with id:', request.tabId);
-        return;
+      catch (error) {
+        // Without this, an awaited call throwing (tabsGet, unsuspendTab, ...) would
+        // reject this detached IIFE with nothing ever catching it — sendResponse() would
+        // never run, and since the listener already returned `true` to keep the channel
+        // open, the external caller is left hanging until the port tears down.
+        gsUtils.error(`externalMessageRequestListener error for action ${request.action}: `, error);
+        sendResponse();
       }
-    }
-    else {
-      tab = await new Promise((r) => {
-        tgs.getCurrentlyActiveTab(r);
-      });
-    }
-
-    if (!tab) {
-      sendResponse('Error: failed to find a target tab');
-      return;
-    }
-
-    if (request.action === 'suspend') {
-      if (gsUtils.isSuspendedTab(tab, true)) {
-        sendResponse('Error: tab is already suspended');
-        return;
-      }
-
-      // Another extension must not override the protections the user set (GHSA-wh6f-63h6-wvq6).
-      gsTabSuspendManager.queueTabForSuspension(tab, 2);
-      sendResponse();
-      return;
-    }
-
-    if (request.action === 'unsuspend') {
-      if (!gsUtils.isSuspendedTab(tab)) {
-        sendResponse('Error: tab is not suspended');
-        return;
-      }
-
-      await tgs.unsuspendTab(tab);
-      sendResponse();
-      return;
-    }
+    })();
     return true;
   }
 
@@ -934,45 +965,42 @@ import  { tgs }                   from './tgs.js';
   }
 
   /** @returns { Promise<void> } */
-  function initAsPromised() {
-    return new Promise(async (resolve) => {
-      gsUtils.log('background', 'PERFORMING BACKGROUND INIT...');
+  async function initAsPromised() {
+    gsUtils.log('background', 'PERFORMING BACKGROUND INIT...');
 
-      // Deliberately NOT cleaning up the old chrome.storage.local-backed log buffer's keys
-      // (gsLogBuffer, gsLogBufferFull, gsLogBufferVersion, gsLogBufferClearedAt) here or
-      // anywhere else. An earlier version of this code did exactly that from this same
-      // service-worker init, on the theory that bounding *who* calls remove() (at most the
-      // two service worker instances "incognito": "split" creates, rather than every open
-      // context) was enough to avoid the broadcast-fanout problem this whole migration
-      // exists to eliminate. It wasn't: chrome.storage.local.remove() broadcasts the
-      // removed key's full oldValue to *every* context with an onChanged listener
-      // regardless of which context called remove() — a profile that had already
-      // accumulated a multi-MB gsLogBufferFull under the old design would still deliver
-      // that same multi-MB payload to every suspended tab on the one call that actually
-      // succeeds, no matter how few contexts attempt it. These keys are genuinely orphaned
-      // (nothing reads them any more) and harmless left in place — a few MB of dead data
-      // sitting in chrome.storage.local forever is a far better trade than risking that
-      // broadcast during exactly the many-suspended-tabs scenario that caused the original
-      // crash.
+    // Deliberately NOT cleaning up the old chrome.storage.local-backed log buffer's keys
+    // (gsLogBuffer, gsLogBufferFull, gsLogBufferVersion, gsLogBufferClearedAt) here or
+    // anywhere else. An earlier version of this code did exactly that from this same
+    // service-worker init, on the theory that bounding *who* calls remove() (at most the
+    // two service worker instances "incognito": "split" creates, rather than every open
+    // context) was enough to avoid the broadcast-fanout problem this whole migration
+    // exists to eliminate. It wasn't: chrome.storage.local.remove() broadcasts the
+    // removed key's full oldValue to *every* context with an onChanged listener
+    // regardless of which context called remove() — a profile that had already
+    // accumulated a multi-MB gsLogBufferFull under the old design would still deliver
+    // that same multi-MB payload to every suspended tab on the one call that actually
+    // succeeds, no matter how few contexts attempt it. These keys are genuinely orphaned
+    // (nothing reads them any more) and harmless left in place — a few MB of dead data
+    // sitting in chrome.storage.local forever is a far better trade than risking that
+    // broadcast during exactly the many-suspended-tabs scenario that caused the original
+    // crash.
 
-      //initialise currentStationary and currentFocused vars
-      const activeTabs = await gsChrome.tabsQuery({ active: true });
-      const currentWindow = await gsChrome.windowsGetLastFocused();
-      for (const activeTab of activeTabs) {
-        (await tgs.getCurrentStationaryTabIdByWindowId())[activeTab.windowId] = activeTab.id;
-        (await tgs.getCurrentFocusedTabIdByWindowId())[activeTab.windowId] = activeTab.id;
-        if (currentWindow && currentWindow.id === activeTab.windowId) {
-          await tgs.setCurrentStationaryWindowId(activeTab.windowId);
-          await tgs.setCurrentFocusedWindowId(activeTab.windowId);
-        }
+    //initialise currentStationary and currentFocused vars
+    const activeTabs = await gsChrome.tabsQuery({ active: true });
+    const currentWindow = await gsChrome.windowsGetLastFocused();
+    for (const activeTab of activeTabs) {
+      (await tgs.getCurrentStationaryTabIdByWindowId())[activeTab.windowId] = activeTab.id;
+      (await tgs.getCurrentFocusedTabIdByWindowId())[activeTab.windowId] = activeTab.id;
+      if (currentWindow && currentWindow.id === activeTab.windowId) {
+        await tgs.setCurrentStationaryWindowId(activeTab.windowId);
+        await tgs.setCurrentFocusedWindowId(activeTab.windowId);
       }
-      await tgs.initTabGroupKeyCache();
-      // the menu outlives the worker but is built only on install, so re-derive it per start (#133)
-      tgs.refreshNeverSuspendGroupMenuItems();
+    }
+    await tgs.initTabGroupKeyCache();
+    // the menu outlives the worker but is built only on install, so re-derive it per start (#133)
+    tgs.refreshNeverSuspendGroupMenuItems();
 
-      gsUtils.log('background', 'init successful');
-      resolve();
-    });
+    gsUtils.log('background', 'init successful');
   }
 
 

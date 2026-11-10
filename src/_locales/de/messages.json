@@ -585,6 +585,21 @@
     "message": "Ein Eintrag pro Zeile, mit denselben Regeln wie in der obigen Liste (einfacher Text, der irgendwo in der URL passt, oder /regex/ zwischen Schrägstrichen).",
     "description": "Paragraph of a help tooltip. The text wraps by itself: don't split it or add line breaks."
   },
+  "html_options_always_suspend_custom_times_title": {
+    "message": "Eigene Auto-Suspend-Zeiten (eine Regel pro Zeile, MUSTER : MINUTEN):"
+  },
+  "html_options_always_suspend_custom_times_tooltip_line1a": {
+    "message": "Überschreibt das globale Timeout für passende URLs. Format: MUSTER : MINUTEN"
+  },
+  "html_options_always_suspend_custom_times_tooltip_line1b": {
+    "message": "(0 = diesen Tab nie aussetzen). Zum Beispiel:"
+  },
+  "html_options_always_suspend_custom_times_tooltip_line2a": {
+    "message": "Muster: einfacher Text (irgendwo in der URL), * als Platzhalter oder /regex/ zwischen Schrägstrichen."
+  },
+  "html_options_always_suspend_custom_times_tooltip_line2b": {
+    "message": "Die erste passende Zeile gewinnt. Zeilen, die mit # beginnen, sind Kommentare."
+  },
   "html_options_whitelist_tooltip_line1": {
     "message": "Fügen Sie die URL jeder Seite, die Sie zulassen möchten, in einer neuen Zeile hinzu. Zum Beispiel:"
   },
@@ -631,6 +646,15 @@
   },
   "html_options_never_suspend_groups_remove": {
     "message": "Entfernen"
+  },
+  "html_options_never_suspend_groups_add": {
+    "message": "Hinzufügen"
+  },
+  "html_options_never_suspend_groups_add_placeholder": {
+    "message": "Offene Tab-Gruppe auswählen…"
+  },
+  "html_options_never_suspend_groups_add_none": {
+    "message": "Keine offenen benannten Tab-Gruppen zum Hinzufügen"
   },
   "html_options_other_enable_context_menu": {
     "message": "The Marvellous Suspender zum Rechtsklick-Kontextmenü hinzufügen"
@@ -941,6 +965,25 @@
   },
   "js_popup_never": {
     "message": "Automatische Tab-Aussetzung deaktiviert."
+  },
+  "js_popup_suspend_time_minutes": {
+    "message": "Wird nach $mins$ Min. ausgesetzt",
+    "placeholders": {
+      "mins": {
+        "content": "$1"
+      }
+    }
+  },
+  "js_popup_suspend_time_hours": {
+    "message": "Wird nach $hours$ Std. ausgesetzt",
+    "placeholders": {
+      "hours": {
+        "content": "$1"
+      }
+    }
+  },
+  "js_popup_suspend_time_custom": {
+    "message": " (eigene Regel)"
   },
   "js_popup_no_connectivity": {
     "message": "Keine Netzwerkverbindung"

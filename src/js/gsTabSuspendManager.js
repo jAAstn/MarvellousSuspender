@@ -9,6 +9,7 @@ import  { gsTabDiscardManager }   from './gsTabDiscardManager.js';
 import  { gsTabQueue }            from './gsTabQueue.js';
 import  { gsUtils }               from './gsUtils.js';
 import  { tgs }                   from './tgs.js';
+import  { gsCustomSuspend }       from './gsCustomSuspend.js'; // [FORK]
 
 export const gsTabSuspendManager = (function() {
 
@@ -55,30 +56,26 @@ export const gsTabSuspendManager = (function() {
     }
   }
 
-  function initAsPromised() {
+  async function initAsPromised() {
     gsUtils.log('gsTabSuspendManager initAsPromised', _suspensionQueue);
-    return new Promise(async (resolve) => {
-      const screenCaptureMode   = await gsStorage.getOption(gsStorage.SCREEN_CAPTURE);
-      const forceScreenCapture  = await gsStorage.getOption(gsStorage.SCREEN_CAPTURE_FORCE);
-      // TODO: This should probably update when the screen capture mode changes
-      const concurrentSuspensions = screenCaptureMode === '0' ? 5 : DEFAULT_CONCURRENT_SUSPENSIONS;
-      const suspensionTimeout = forceScreenCapture ? 5 * 60 * 1000 : DEFAULT_SUSPENSION_TIMEOUT;
-      const queueProps = {
-        concurrentExecutors: concurrentSuspensions,
-        jobTimeout: suspensionTimeout,
-        executorFn: performSuspension,
-        exceptionFn: handleSuspensionException,
-      };
-      _suspensionQueue = gsTabQueue.init(QUEUE_ID, queueProps);
-      gsUtils.log(QUEUE_ID, 'init successful');
+    const screenCaptureMode   = await gsStorage.getOption(gsStorage.SCREEN_CAPTURE);
+    const forceScreenCapture  = await gsStorage.getOption(gsStorage.SCREEN_CAPTURE_FORCE);
+    // TODO: This should probably update when the screen capture mode changes
+    const concurrentSuspensions = screenCaptureMode === '0' ? 5 : DEFAULT_CONCURRENT_SUSPENSIONS;
+    const suspensionTimeout = forceScreenCapture ? 5 * 60 * 1000 : DEFAULT_SUSPENSION_TIMEOUT;
+    const queueProps = {
+      concurrentExecutors: concurrentSuspensions,
+      jobTimeout: suspensionTimeout,
+      executorFn: performSuspension,
+      exceptionFn: handleSuspensionException,
+    };
+    _suspensionQueue = gsTabQueue.init(QUEUE_ID, queueProps);
+    gsUtils.log(QUEUE_ID, 'init successful');
 
-      let resolveFn;
-      while ((resolveFn = INIT_RESOLVERS.pop())) {
-        resolveFn();
-      }
-
-      resolve();
-    });
+    let resolveFn;
+    while ((resolveFn = INIT_RESOLVERS.pop())) {
+      resolveFn();
+    }
   }
 
   /** @returns { Promise<void> } */
@@ -163,8 +160,11 @@ export const gsTabSuspendManager = (function() {
     // Although if the tab is still loading then pause and scroll pos should
     // not be set?
     // Do not bypass loading state if screen capture is required
-    let screenCaptureMode = await gsStorage.getOption(gsStorage.SCREEN_CAPTURE);
-    const screenCaptureMethod = await gsStorage.getOption(gsStorage.SCREEN_CAPTURE_METHOD);
+    const [initialScreenCaptureMode, screenCaptureMethod] = await Promise.all([
+      gsStorage.getOption(gsStorage.SCREEN_CAPTURE),
+      gsStorage.getOption(gsStorage.SCREEN_CAPTURE_METHOD),
+    ]);
+    let screenCaptureMode = initialScreenCaptureMode;
     if (tab.status === 'loading') {
       const savedTabInfo = await gsIndexedDb.fetchTabInfo(tab.url);
       if (screenCaptureMode === '0' && savedTabInfo) {
@@ -172,6 +172,7 @@ export const gsTabSuspendManager = (function() {
           tab.url,
           savedTabInfo.title,
           0,
+          tab.favIconUrl, // [FORK]
         );
         gsUtils.log(tab.id, QUEUE_ID, 'Interrupting tab loading to resuspend tab');
         const success = await executeTabSuspension(tab, suspendedUrl);
@@ -213,7 +214,7 @@ export const gsTabSuspendManager = (function() {
     tab.url = timestampedUrl;
     await saveSuspendData(tab);
 
-    const suspendedUrl = gsUtils.generateSuspendedUrl(tab.url, tab.title, tabInfo.scrollPos,);
+    const suspendedUrl = gsUtils.generateSuspendedUrl(tab.url, tab.title, tabInfo.scrollPos, tab.favIconUrl /* [FORK] */);
     executionProps.suspendedUrl = suspendedUrl;
 
     if (screenCaptureMode === '0') {
@@ -454,43 +455,38 @@ export const gsTabSuspendManager = (function() {
   // caller-side checks before calling this can cover, since they all run before it, not after
   // its internal awaits. Callers that don't pass one (e.g. the force-suspend-on-timeout path,
   // which intentionally suspends regardless) get the previous unconditional behaviour.
-  function executeTabSuspension(tab, suspendedUrl, isStillCurrent = () => true) {
-    return new Promise(async (resolve) => {
-      // Remove any existing queued tab checks (this can happen if we try to suspend
-      // a tab immediately after it gains focus)
-      gsTabCheckManager.unqueueTabCheck(tab);
+  async function executeTabSuspension(tab, suspendedUrl, isStillCurrent = () => true) {
+    // Remove any existing queued tab checks (this can happen if we try to suspend
+    // a tab immediately after it gains focus)
+    gsTabCheckManager.unqueueTabCheck(tab);
 
-      // If we want tabs to be discarded instead of suspending them
-      const discardInPlaceOfSuspend = await gsStorage.getOption(gsStorage.DISCARD_IN_PLACE_OF_SUSPEND);
-      if (discardInPlaceOfSuspend) {
-        await tgs.clearAutoSuspendTimerForTabId(tab.id);
-        gsTabDiscardManager.queueTabForDiscard(tab);
-        resolve(true);
-        return;
-      }
+    // If we want tabs to be discarded instead of suspending them
+    const discardInPlaceOfSuspend = await gsStorage.getOption(gsStorage.DISCARD_IN_PLACE_OF_SUSPEND);
+    if (discardInPlaceOfSuspend) {
+      await tgs.clearAutoSuspendTimerForTabId(tab.id);
+      gsTabDiscardManager.queueTabForDiscard(tab);
+      return true;
+    }
 
-      if (gsUtils.isSuspendedTab(tab, true)) {
-        gsUtils.log(tab.id, 'Tab already suspended');
-        resolve(false);
-        return;
-      }
+    if (gsUtils.isSuspendedTab(tab, true)) {
+      gsUtils.log(tab.id, 'Tab already suspended');
+      return false;
+    }
 
-      if (!suspendedUrl) {
-        gsUtils.log(tab.id, 'executionProps.suspendedUrl not set!');
-        suspendedUrl = gsUtils.generateSuspendedUrl(tab.url, tab.title, 0);
-      }
+    if (!suspendedUrl) {
+      gsUtils.log(tab.id, 'executionProps.suspendedUrl not set!');
+      suspendedUrl = gsUtils.generateSuspendedUrl(tab.url, tab.title, 0, tab.favIconUrl /* [FORK] */);
+    }
 
-      gsUtils.log(tab.id, 'Suspending tab');
-      await tgs.setTabStatePropForTabId(tab.id, tgs.STATE_INITIALISE_SUSPENDED_TAB, true);
-      if (!isStillCurrent()) {
-        gsUtils.log(tab.id, 'Suspension cancelled just before tabsUpdate. Ignoring.');
-        resolve(false);
-        return;
-      }
-      gsChrome.tabsUpdate(tab.id, { url: suspendedUrl }).then(updatedTab => {
-        resolve(updatedTab !== null);
-      });
-    });
+    gsUtils.log(tab.id, 'Suspending tab');
+    await tgs.setTabStatePropForTabId(tab.id, tgs.STATE_INITIALISE_SUSPENDED_TAB, true);
+    if (!isStillCurrent()) {
+      gsUtils.log(tab.id, 'Suspension cancelled just before tabsUpdate. Ignoring.');
+      return false;
+    }
+    const updatedTab = await gsChrome.tabsUpdate(tab.id, { url: suspendedUrl });
+    gsCustomSuspend.removeTabHistoryForSuspendedTab(suspendedUrl); // [FORK] keep placeholders out of history
+    return updatedTab !== null;
   }
 
   // forceLevel indicates which users preferences to respect when attempting to suspend the tab
@@ -536,10 +532,18 @@ export const gsTabSuspendManager = (function() {
       }
     }
     if (forceLevel >= 3) {
-      if (await gsStorage.getOption(gsStorage.IGNORE_WHEN_OFFLINE) && !navigator.onLine) {
+      // All four reads are independent. isCharging() is a chrome.storage.session read,
+      // and reading it twice here made every automatic suspension pay for it twice.
+      const [ignoreOffline, ignoreCharging, initialSuspendTime, charging] = await Promise.all([
+        gsStorage.getOption(gsStorage.IGNORE_WHEN_OFFLINE),
+        gsStorage.getOption(gsStorage.IGNORE_WHEN_CHARGING),
+        gsStorage.getOption(gsStorage.SUSPEND_TIME),
+        tgs.isCharging(),
+      ]);
+      if (ignoreOffline && !navigator.onLine) {
         return false;
       }
-      if (await gsStorage.getOption(gsStorage.IGNORE_WHEN_CHARGING) && await tgs.isCharging()) {
+      if (ignoreCharging && charging) {
         return false;
       }
       // Mirrors the effective-timeout logic in tgs.js's resetAutoSuspendTimerForTab():
@@ -547,14 +551,15 @@ export const gsTabSuspendManager = (function() {
       // timeout is "Never" ('0') — the UI hides the normal-timeout-only options in
       // that state but doesn't clear their stored value, so a stale '0' here must not
       // reject a suspension that was legitimately scheduled off the battery timeout.
-      let effectiveSuspendTime = await gsStorage.getOption(gsStorage.SUSPEND_TIME);
-      if ((await tgs.isCharging()) === false) {
+      let effectiveSuspendTime = initialSuspendTime;
+      if (charging === false) {
         const suspendTimeOnBattery = await gsStorage.getOption(gsStorage.SUSPEND_TIME_ON_BATTERY);
         if (suspendTimeOnBattery !== '') {
           effectiveSuspendTime = suspendTimeOnBattery;
         }
       }
-      if (effectiveSuspendTime === '0') {
+      // [FORK] a custom per-URL rule can override a global "Never" (or force never with 0)
+      if ((await gsCustomSuspend.resolveSuspendTime(tab.url, effectiveSuspendTime)).minutes === 0) {
         return false;
       }
     }
@@ -646,8 +651,10 @@ export const gsTabSuspendManager = (function() {
   }
 
   async function requestGeneratePreviewImage(tab, previewToken) {
-    const screenCaptureMode   = await gsStorage.getOption(gsStorage.SCREEN_CAPTURE);
-    const forceScreenCapture  = await gsStorage.getOption(gsStorage.SCREEN_CAPTURE_FORCE);
+    const [screenCaptureMode, forceScreenCapture] = await Promise.all([
+      gsStorage.getOption(gsStorage.SCREEN_CAPTURE),
+      gsStorage.getOption(gsStorage.SCREEN_CAPTURE_FORCE),
+    ]);
     const screenCaptureLib = 'js/snapdom.js';
     gsUtils.log(tab.id, QUEUE_ID, `Injecting ${screenCaptureLib} into content script`,);
 
@@ -708,9 +715,21 @@ export const gsTabSuspendManager = (function() {
             });
           };
 
+          // Reading the whole canvas back costs width * height * 4 bytes — a long page
+          // at scale 1 reaches tens of MB — only to answer "is anything drawn". A 32x32
+          // downscale samples the whole page instead of one corner, and reading those
+          // 4 KB back is cheap even for a 20,000px page.
+          const SAMPLE_SIZE = 32;
           const isCanvasVisible = canvas => {
-            const ctx       = canvas.getContext('2d');
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            if (!canvas.width || !canvas.height) {
+              return false;
+            }
+            const sample = document.createElement('canvas');
+            sample.width  = SAMPLE_SIZE;
+            sample.height = SAMPLE_SIZE;
+            const ctx = sample.getContext('2d');
+            ctx.drawImage(canvas, 0, 0, SAMPLE_SIZE, SAMPLE_SIZE);
+            const imageData = ctx.getImageData(0, 0, SAMPLE_SIZE, SAMPLE_SIZE);
             for (let i = 0; i < imageData.data.length; i += 4) {
               const isTransparent = imageData.data[i + 3] === 0;
               const isWhite =

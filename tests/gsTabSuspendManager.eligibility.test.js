@@ -314,10 +314,11 @@ describe('checkTabEligibilityForSuspension at force level 3', () => {
     await expect(check(makeTab(), 3)).resolves.toBe(expected);
   });
 
-  // The comparison is `=== '0'`, so "never" stored as a number is not recognised.
-  it('does not read a numeric 0 suspend time as "never" (oddity: see comment)', async () => {
+  // resolveSuspendTime() normalises the effective timeout, so "never" stored as the
+  // number 0 is recognised too (upstream's raw `=== '0'` was not).
+  it('reads a numeric 0 suspend time as "never"', async () => {
     await setOptions({ SUSPEND_TIME: 0 });
-    await expect(check(makeTab(), 3)).resolves.toBe(true);
+    await expect(check(makeTab(), 3)).resolves.toBe(false);
   });
 
   // The list lifts the level 2 protections, not the level 3 conditions.

@@ -5,6 +5,7 @@ import  { gsMascot }              from './gsMascot.js';
 import  { gsStorage }             from './gsStorage.js';
 import  { gsUtils }               from './gsUtils.js';
 import  { tgs }                   from './tgs.js';
+import  { gsCustomSuspend }       from './gsCustomSuspend.js'; // [FORK]
 
 (() => {
 
@@ -86,19 +87,21 @@ import  { tgs }                   from './tgs.js';
   }
 
   function buildImagePreview(tab, previewUri) {
-    return new Promise(async (resolve) => {
-      const previewEl = document.createElement('div');
-      const bodyEl = document.getElementsByTagName('body')[0];
-      previewEl.setAttribute('id', 'gsPreviewContainer');
-      previewEl.classList.add('gsPreviewContainer');
-      previewEl.innerHTML = document.getElementById(
-        'previewTemplate',
-      ).innerHTML;
-      const unsuspendTabHandler = buildUnsuspendTabHandler(tab);
-      previewEl.onclick = unsuspendTabHandler;
-      gsUtils.localiseHtml(previewEl);
-      bodyEl.appendChild(previewEl);
+    const previewEl = document.createElement('div');
+    const bodyEl = document.getElementsByTagName('body')[0];
+    previewEl.setAttribute('id', 'gsPreviewContainer');
+    previewEl.classList.add('gsPreviewContainer');
+    previewEl.innerHTML = document.getElementById(
+      'previewTemplate',
+    ).innerHTML;
+    const unsuspendTabHandler = buildUnsuspendTabHandler(tab);
+    previewEl.onclick = unsuspendTabHandler;
+    gsUtils.localiseHtml(previewEl);
+    bodyEl.appendChild(previewEl);
 
+    // Settles when the preview image has loaded (or failed to): still event-driven,
+    // just without the promise-executor wrapper around it.
+    return new Promise((resolve) => {
       const previewImgEl = document.getElementById('gsPreviewImg');
       const onLoadedHandler = function() {
         previewImgEl.removeEventListener('load', onLoadedHandler);
@@ -306,6 +309,21 @@ import  { tgs }                   from './tgs.js';
     document.getElementById('tmsUpdateAvailable').onclick = unsuspendTabHandler;
   }
 
+  // [FORK] see gsCustomSuspend.js (Favicon-Durchreichung)
+  async function getPassthroughFaviconMeta(suspendedUrl) {
+    const favicon = gsCustomSuspend.getFaviconFromSuspendedUrl(suspendedUrl);
+    if (!favicon) {
+      return null;
+    }
+    try {
+      return await gsFavicon.buildFaviconMeta(favicon);
+    }
+    catch (error) {
+      gsUtils.warning('suspended', 'getPassthroughFaviconMeta', error);
+      return null;
+    }
+  }
+
   async function initTab(tab, sessionId, quickInit) {
 
     const suspendedUrl = tab.url;
@@ -332,7 +350,14 @@ import  { tgs }                   from './tgs.js';
     setWatermark();
 
     // Set faviconMeta
-    const faviconMeta = await faviconMetaPromise;
+    // [FORK] a data:-favicon carried in the suspended URL wins over the cache/Chrome lookup
+    let faviconMeta = await getPassthroughFaviconMeta(suspendedUrl);
+    if (!faviconMeta) {
+      faviconMeta = await faviconMetaPromise;
+    }
+    if (!faviconMeta) {
+      faviconMeta = await gsFavicon.getFaviconMeta(tab);
+    }
     setFaviconMeta(faviconMeta);
 
     await setUnloadTabHandler(tab, options[gsStorage.RELOAD_UNSUSPEND_BACKGROUND]);

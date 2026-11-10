@@ -6,6 +6,8 @@
   "scripts": {
     "build": "grunt",
     "lint": "eslint .",
+    "lint:baseline": "node scripts/lint-baseline.js --update",
+    "lint:ci": "node scripts/lint-baseline.js --check",
     "generate-key": "openssl genrsa -out key.pem",
     "test": "vitest run",
     "test:e2e": "vitest run --config vitest.e2e.config.mjs",

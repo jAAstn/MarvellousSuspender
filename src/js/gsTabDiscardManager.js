@@ -101,8 +101,11 @@ export const gsTabDiscardManager = (function() {
       requeue();
       return;
     }
-    if (await tgs.isCurrentActiveTab(tab)) {
-      const discardInPlaceOfSuspend = await gsStorage.getOption(gsStorage.DISCARD_IN_PLACE_OF_SUSPEND);
+    const [isActive, discardInPlaceOfSuspend] = await Promise.all([
+      tgs.isCurrentActiveTab(tab),
+      gsStorage.getOption(gsStorage.DISCARD_IN_PLACE_OF_SUSPEND),
+    ]);
+    if (isActive) {
       if (!discardInPlaceOfSuspend) {
         gsUtils.log(tab.id, QUEUE_ID, 'Tab is active. Aborting discard.');
         resolve(false);
@@ -148,7 +151,7 @@ export const gsTabDiscardManager = (function() {
       await gsTabSuspendManager.checkTabEligibilityForSuspension(tab, 3)
     ) {
       await tgs.setTabStatePropForTabId(tab.id, tgs.STATE_SUSPEND_REASON, 3);
-      const suspendedUrl = gsUtils.generateSuspendedUrl(tab.url, tab.title, 0);
+      const suspendedUrl = gsUtils.generateSuspendedUrl(tab.url, tab.title, 0, tab.favIconUrl /* [FORK] */);
       gsUtils.log(tab.id, QUEUE_ID, 'Suspending discarded unsuspended tab');
 
       // Note: This bypasses the suspension tab queue and also prevents screenshots from being taken

@@ -1,5 +1,6 @@
 import  { gsIndexedDb }           from './gsIndexedDb.js';
 import  { gsUtils }               from './gsUtils.js';
+import  { gsCustomSuspend }       from './gsCustomSuspend.js'; // [FORK]
 
 export const historyUtils = (() => {
   'use strict';
@@ -276,6 +277,12 @@ export const historyUtils = (() => {
           const url       = new URL(tab.url);
           if (url.host === from_id && url.pathname.match(/\/(suspend(ed)?|park).html$/i)) {
             count += 1;
+            // [FORK] ZeroRAM keeps its state in the query string (?uri=&ttl=&favicon=) — convert instead of host-swapping
+            const convertedHref = gsCustomSuspend.convertForeignSuspendedUrl(url);
+            if (convertedHref) {
+              chrome.tabs.update(tab.id, { url: convertedHref });
+              continue;
+            }
             url.host      = to_id;
             url.pathname  = 'suspended.html';
             chrome.tabs.update(tab.id, { url: url.href });

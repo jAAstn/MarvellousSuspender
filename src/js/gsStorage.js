@@ -43,6 +43,16 @@ async function readSettings() {
   return { settings, backfilled };
 }
 
+// getOption() reads a single property, so it must not pay for the structuredClone of the
+// whole settings object that getSettings() hands to callers that may mutate it: one tab
+// check reads a dozen options, each of them a full clone otherwise. settingsPromise is
+// either the pending load or the loaded object; only a cold read (null) goes through
+// getSettings(), which also does the backfill write.
+async function readSettingsForOption() {
+  if (settingsPromise) return settingsPromise;
+  return gsStorage.getSettings();
+}
+
 export const gsStorage = {
   SCREEN_CAPTURE                : 'screenCapture',
   SCREEN_CAPTURE_FORCE          : 'screenCaptureForce',
@@ -73,6 +83,7 @@ export const gsStorage = {
   WHITELIST                     : 'gsWhitelist',
   ALWAYS_SUSPEND_LIST           : 'gsAlwaysSuspendList',
   NEVER_SUSPEND_GROUPS          : 'gsNeverSuspendGroups',
+  CUSTOM_SUSPEND_TIMES          : 'gsCustomSuspendTimes', // [FORK] see gsCustomSuspend.js
 
   DISCARD_AFTER_SUSPEND         : 'discardAfterSuspend',
   DISCARD_IN_PLACE_OF_SUSPEND   : 'discardInPlaceOfSuspend',
@@ -140,6 +151,7 @@ export const gsStorage = {
     defaults[gsStorage.WHITELIST] = '';
     defaults[gsStorage.ALWAYS_SUSPEND_LIST] = '';
     defaults[gsStorage.NEVER_SUSPEND_GROUPS] = '';
+    defaults[gsStorage.CUSTOM_SUSPEND_TIMES] = ''; // [FORK]
     defaults[gsStorage.THEME] = 'system';
     defaults[gsStorage.LEGACY_MASCOT] = false;
     defaults[gsStorage.LANGUAGE] = 'auto';
@@ -323,8 +335,10 @@ export const gsStorage = {
   //here so that getOption will always return a valid value.
   //no save here, getSettings() does it under the lock
   getOption: async (prop) => {
-    const settings = await gsStorage.getSettings();
-    return settings[prop] ?? gsStorage.getSettingsDefaults()[prop];
+    const settings = await readSettingsForOption();
+    const value = settings[prop] ?? gsStorage.getSettingsDefaults()[prop];
+    // Keep getSettings()'s guarantee that no caller can mutate the cached object.
+    return value !== null && typeof value === 'object' ? structuredClone(value) : value;
   },
 
   // An integer (or integer string) is clamped into MIN..MAX; anything else is the default.

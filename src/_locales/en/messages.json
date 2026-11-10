@@ -1,4 +1,4 @@
-﻿{
+{
   "ext_extension_name": {
     "message": "The Marvellous Suspender"
   },
@@ -585,6 +585,21 @@
     "message": "One entry per line, same matching rules as the list above (plain text match anywhere in the URL, or /regex/ between slashes).",
     "description": "Paragraph of a help tooltip. The text wraps by itself: don't split it or add line breaks."
   },
+  "html_options_always_suspend_custom_times_title": {
+    "message": "Custom auto-suspend times (one rule per line, PATTERN : MINUTES):"
+  },
+  "html_options_always_suspend_custom_times_tooltip_line1a": {
+    "message": "Override the global timeout for matching URLs. Format: PATTERN : MINUTES"
+  },
+  "html_options_always_suspend_custom_times_tooltip_line1b": {
+    "message": "(0 = never suspend this tab). For example:"
+  },
+  "html_options_always_suspend_custom_times_tooltip_line2a": {
+    "message": "Patterns: plain text (anywhere in the URL), * wildcard, or /regex/ between slashes."
+  },
+  "html_options_always_suspend_custom_times_tooltip_line2b": {
+    "message": "The first matching line wins. Lines starting with # are comments."
+  },
   "html_options_whitelist_tooltip_line1": {
     "message": "Add the URL of each page you want to allow on a new line. For example:"
   },
@@ -631,6 +646,15 @@
   },
   "html_options_never_suspend_groups_remove": {
     "message": "Remove"
+  },
+  "html_options_never_suspend_groups_add": {
+    "message": "Add"
+  },
+  "html_options_never_suspend_groups_add_placeholder": {
+    "message": "Select an open tab group…"
+  },
+  "html_options_never_suspend_groups_add_none": {
+    "message": "No open named tab groups to add"
   },
   "html_options_other_enable_context_menu": {
     "message": "Add The Marvellous Suspender to right-click context menu"
@@ -941,6 +965,25 @@
   },
   "js_popup_never": {
     "message": "Automatic tab suspension disabled."
+  },
+  "js_popup_suspend_time_minutes": {
+    "message": "Will suspend after $mins$ min",
+    "placeholders": {
+      "mins": {
+        "content": "$1"
+      }
+    }
+  },
+  "js_popup_suspend_time_hours": {
+    "message": "Will suspend after $hours$ h",
+    "placeholders": {
+      "hours": {
+        "content": "$1"
+      }
+    }
+  },
+  "js_popup_suspend_time_custom": {
+    "message": " (custom)"
   },
   "js_popup_no_connectivity": {
     "message": "No network connection"
