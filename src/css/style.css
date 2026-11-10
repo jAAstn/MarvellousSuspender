@@ -170,7 +170,7 @@ a.active {
 }
 
 .formRow > .topLabel {
-  flex-basis: 100%;
+  flex-basis: auto;
 }
 
 .topLabel {
@@ -354,7 +354,7 @@ a.active {
 .mainContent {
   max-width: var(--content-max);
   width: 100%;
-  margin: var(--space-12) auto;
+  margin: 0px;
   padding: 0 var(--space-6);
   display: grid;
   grid-template-columns: var(--nav-width) 1fr;
@@ -368,7 +368,7 @@ a.active {
   grid-area: h;
   margin: 0 0 var(--space-8);
   border-bottom: 1px solid var(--border);
-  padding-bottom: var(--space-6);
+  padding-bottom: 0px;
 }
 
 .pageHeader h1 {
@@ -600,6 +600,7 @@ a.active {
   padding: var(--space-6) var(--space-8);
   margin-bottom: var(--space-6);
   background-color: var(--card);
+  display: none !important;
 }
 
 /* ── Plain section description (below pageTitle / h2, no box) ──────────── */
@@ -1688,14 +1689,21 @@ body.dark span.group.edge.orange { background: #df8e64; }
   align-items: flex-start;
 }
 
+.splash.welcome-message,
+.splash.reallyHidden.welcome-message {
+	display: none !important;
+}
+
 
 .welcome-message {
   max-width: none;
   margin-top: var(--space-6);
+  display: none !important;
 }
 
 .welcome-message p {
   font-size: var(--text-base);
+  display: none !important;
 }
 
 #testWhitelistBtn,
